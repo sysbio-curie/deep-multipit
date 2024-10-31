@@ -8,34 +8,80 @@ from dmultipit.utils import inf_loop, MetricTracker, set_device
 class Trainer(BaseTrainer):
     """
     Trainer class
+
+    Parameters
+    ----------
+    model:
+
+    criterion:
+
+    metric_ftns:
+
+    optimizer:
+
+    config:
+
+    device:
+
+    data_loader:
+
+    valid_data_loader:
+
+    unlabelled_data_loader:
+
+    weight_unlabelled:
+
+    criterion_unlabelled:
+
+    lr_scheduler:
+
+    len_epoch:
+
+    log_dir:
+
+    ensembling_index:
+
+    save_architecture:
+
+    disable_checkpoint:
+
     """
 
     def __init__(
-            self,
-            model,
-            criterion,
-            metric_ftns,
-            optimizer,
-            config,
-            device,
-            data_loader,
-            valid_data_loader=None,
-            unlabelled_data_loader=None,
-            weight_unlabelled=None,
-            criterion_unlabelled=None,
-            lr_scheduler=None,
-            len_epoch=None,
-            log_dir=None,
-            ensembling_index=None,
-            save_architecture=False,
-            disable_checkpoint=False
+        self,
+        model,
+        criterion,
+        metric_ftns,
+        optimizer,
+        config,
+        device,
+        data_loader,
+        valid_data_loader=None,
+        unlabelled_data_loader=None,
+        weight_unlabelled=None,
+        criterion_unlabelled=None,
+        lr_scheduler=None,
+        len_epoch=None,
+        log_dir=None,
+        ensembling_index=None,
+        save_architecture=False,
+        disable_checkpoint=False,
     ):
 
         if log_dir is None:
             log_dir = config.log_dir
 
-        super().__init__(model, criterion, metric_ftns, optimizer, config, log_dir, ensembling_index, save_architecture,
-                         disable_checkpoint)
+        super().__init__(
+            model,
+            criterion,
+            metric_ftns,
+            optimizer,
+            config,
+            log_dir,
+            ensembling_index,
+            save_architecture,
+            disable_checkpoint,
+        )
         self.config = config
         self.device = device
         self.data_loader = data_loader
@@ -57,7 +103,7 @@ class Trainer(BaseTrainer):
         self.criterion_unlabelled = criterion_unlabelled
         self.weigth_unlabelled = weight_unlabelled
 
-        metric_keys = ['loss'] + [m.__name__ for m in self.metric_ftns]
+        metric_keys = ["loss"] + [m.__name__ for m in self.metric_ftns]
         self.valid_metrics = MetricTracker(metric_keys, writer=self.writer)
         if self.pseudo_labelling:
             metric_keys.append("unlabelled_loss")
@@ -67,16 +113,24 @@ class Trainer(BaseTrainer):
         """
         Training logic for an epoch
 
-        :param epoch: Integer, current training epoch.
-        :return: A log that contains average loss and metric in this epoch.
+        Parameters
+        ----------
+        epoch: Int
+            Current training epoch.
+
+        Returns
+        -------
+        log: A log that contains average loss and metric in this epoch.
         """
         self.model.train()
         self.train_metrics.reset()
 
         for batch_idx, (*list_modas, mask, target) in enumerate(self.data_loader):
-            list_modas, mask, target = (set_device(list_modas, self.device), set_device(mask, self.device),
-                                        set_device(target, self.device)
-                                        )
+            list_modas, mask, target = (
+                set_device(list_modas, self.device),
+                set_device(mask, self.device),
+                set_device(target, self.device),
+            )
             self.optimizer.zero_grad()
 
             output = self.model(list_modas, mask)
@@ -84,7 +138,8 @@ class Trainer(BaseTrainer):
 
             if self.config["training"]["l2_penalty"] is not None:
                 l2_penalty = torch.stack(
-                    [p.norm(p=2) for n, p in self.model.named_parameters() if 'weight' in n]).sum()  # **2
+                    [p.norm(p=2) for n, p in self.model.named_parameters() if "weight" in n]
+                ).sum()  # **2
                 loss += self.config["training"]["l2_penalty"] * l2_penalty
             if self.config["training"]["attention_penalty"] is not None:
                 att_penalty = self.model.multimodalattention.attention_norm
@@ -135,8 +190,11 @@ class Trainer(BaseTrainer):
     def _train_unlabelled_epoch(self, epoch):
         """
         Train on unlabelled data
-        :param epoch:
-        :return:
+
+        Parameters
+        ----------
+        epoch: Int
+            Current epoch
         """
 
         for batch_idx, (*list_modas, mask, _) in enumerate(self.unlabelled_data_loader):
@@ -160,18 +218,24 @@ class Trainer(BaseTrainer):
         """
         Validate after training an epoch
 
-        :param epoch: Integer, current training epoch.
-        :return: A log that contains information about validation
+        Parameters
+        ----------
+        epoch: Int
+            Current training epoch.
+
+        Returns
+        -------
+        log: A log that contains information about validation
         """
         self.model.eval()
         self.valid_metrics.reset()
         with torch.no_grad():
-            for batch_idx, (*list_modas, mask, target) in enumerate(
-                    self.valid_data_loader
-            ):
-                list_modas, mask, target = (set_device(list_modas, self.device), set_device(mask, self.device),
-                                            set_device(target, self.device)
-                                            )
+            for batch_idx, (*list_modas, mask, target) in enumerate(self.valid_data_loader):
+                list_modas, mask, target = (
+                    set_device(list_modas, self.device),
+                    set_device(mask, self.device),
+                    set_device(target, self.device),
+                )
                 output = self.model(list_modas, mask)
                 loss = self.criterion(output, target)
 
@@ -201,59 +265,59 @@ class Trainer(BaseTrainer):
         return base.format(current, total, 100.0 * current / total)
 
 
-class FastTrainer(BaseTrainer):
-    def __init__(
-            self,
-            model,
-            criterion,
-            metric_ftns,
-            optimizer,
-            config,
-            device,
-            data_loader,
-            log_dir=None,
-            ensembling_index=None,
-            save_architecture=False,
-            disable_checkpoint=False
-    ):
-
-        if log_dir is None:
-            log_dir = config.log_dir
-
-        super().__init__(model, criterion, metric_ftns, optimizer, config, log_dir, ensembling_index, save_architecture,
-                         disable_checkpoint)
-        self.config = config
-        self.device = device
-        self.data_loader = data_loader
-
-    def _train_epoch(self, epoch):
-        """
-        Training logic for an epoch
-
-        :param epoch: Integer, current training epoch.
-        :return: A log that contains average loss and metric in this epoch.
-        """
-        self.model.train()
-        log = {}
-
-        for batch_idx, (*list_modas, mask, target) in enumerate(self.data_loader):
-            list_modas, mask, target = (set_device(list_modas, self.device), set_device(mask, self.device),
-                                        set_device(target, self.device)
-                                        )
-            self.optimizer.zero_grad()
-
-            output = self.model(list_modas, mask)
-            loss = self.criterion(output, target)
-
-            if self.config["training"]["l2_penalty"] is not None:
-                l2_penalty = torch.stack(
-                    [p.norm(p=2) for n, p in self.model.named_parameters() if 'weight' in n]).sum()  # **2
-                loss += self.config["training"]["l2_penalty"] * l2_penalty
-            if self.config["training"]["attention_penalty"] is not None:
-                att_penalty = self.model.multimodalattention.attention_norm
-                loss += self.config["training"]["attention_penalty"] * att_penalty
-
-            loss.backward()
-            self.optimizer.step()
-
-        return log
+# class FastTrainer(BaseTrainer):
+#     def __init__(
+#             self,
+#             model,
+#             criterion,
+#             metric_ftns,
+#             optimizer,
+#             config,
+#             device,
+#             data_loader,
+#             log_dir=None,
+#             ensembling_index=None,
+#             save_architecture=False,
+#             disable_checkpoint=False
+#     ):
+#
+#         if log_dir is None:
+#             log_dir = config.log_dir
+#
+#         super().__init__(model, criterion, metric_ftns, optimizer, config, log_dir, ensembling_index, save_architecture,
+#                          disable_checkpoint)
+#         self.config = config
+#         self.device = device
+#         self.data_loader = data_loader
+#
+#     def _train_epoch(self, epoch):
+#         """
+#         Training logic for an epoch
+#
+#         :param epoch: Integer, current training epoch.
+#         :return: A log that contains average loss and metric in this epoch.
+#         """
+#         self.model.train()
+#         log = {}
+#
+#         for batch_idx, (*list_modas, mask, target) in enumerate(self.data_loader):
+#             list_modas, mask, target = (set_device(list_modas, self.device), set_device(mask, self.device),
+#                                         set_device(target, self.device)
+#                                         )
+#             self.optimizer.zero_grad()
+#
+#             output = self.model(list_modas, mask)
+#             loss = self.criterion(output, target)
+#
+#             if self.config["training"]["l2_penalty"] is not None:
+#                 l2_penalty = torch.stack(
+#                     [p.norm(p=2) for n, p in self.model.named_parameters() if 'weight' in n]).sum()  # **2
+#                 loss += self.config["training"]["l2_penalty"] * l2_penalty
+#             if self.config["training"]["attention_penalty"] is not None:
+#                 att_penalty = self.model.multimodalattention.attention_norm
+#                 loss += self.config["training"]["attention_penalty"] * att_penalty
+#
+#             loss.backward()
+#             self.optimizer.step()
+#
+#         return log

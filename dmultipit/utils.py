@@ -10,6 +10,7 @@ import yaml
 
 
 def set_device(data, device):
+    """Set Torch.device to tensor or list of tensors"""
     if isinstance(data, list):
         data = [d.to(device) for d in data]
     else:
@@ -18,6 +19,7 @@ def set_device(data, device):
 
 
 def collate_variable_size(batch):
+    """ """
     data, target = [], []
     for item in batch:
         if isinstance(item[0], list):
@@ -29,23 +31,27 @@ def collate_variable_size(batch):
 
 
 def ensure_dir(dirname):
+    """ """
     dirname = Path(dirname)
     if not dirname.is_dir():
         dirname.mkdir(parents=True, exist_ok=False)
 
 
 def read_yaml(fname):
+    """Read .yaml file"""
     with open(fname) as yaml_file:
         return yaml.safe_load(yaml_file)
 
 
 def read_json(fname):
+    """Read .json file"""
     fname = Path(fname)
     with fname.open("rt") as handle:
         return json.load(handle, object_hook=OrderedDict)
 
 
 def write_yaml(content, fname):
+    """Write .yaml file"""
     content = _clean_nested_dict(content)
     with open(fname, "w") as yaml_file:
         yaml.safe_dump(
@@ -54,6 +60,7 @@ def write_yaml(content, fname):
 
 
 def write_json(content, fname):
+    """Write .json file"""
     fname = Path(fname)
     content = _clean_nested_dict(content)
     with fname.open("wt") as handle:
@@ -131,9 +138,13 @@ def _clean_nested_dict(d):
 
 
 def masked_softmax(input_tensor, input_mask, dim):
-    max_values = torch.max(torch.where(input_mask, input_tensor, torch.min(input_tensor)), dim=dim, keepdim=True)[0]
+    max_values = torch.max(
+        torch.where(input_mask, input_tensor, torch.min(input_tensor)),
+        dim=dim,
+        keepdim=True,
+    )[0]
     input_exp = torch.exp(input_tensor - max_values)
-    input_exp_masked = torch.where(input_mask, input_exp, torch.tensor(0.))
+    input_exp_masked = torch.where(input_mask, input_exp, torch.tensor(0.0))
     output = input_exp_masked / torch.sum(input_exp, dim=dim, keepdim=True)
 
     norm = input_exp_masked.norm(p=2, dim=dim).mean()

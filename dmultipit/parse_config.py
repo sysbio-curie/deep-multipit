@@ -57,11 +57,11 @@ class ConfigParser:
                 self.config["exp_id"] = "exp_" + datetime.now().strftime(r"%m%d_%H%M%S")
 
             self._save_dir = (
-                    save_dir
-                    / "results"
-                    / exper_name
-                    / self.config["run_id"]
-                    / self.config["exp_id"]
+                save_dir
+                / "results"
+                / exper_name
+                / self.config["run_id"]
+                / self.config["exp_id"]
             )
             self.save_dir.mkdir(parents=True, exist_ok=True)
 
