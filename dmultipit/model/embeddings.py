@@ -25,7 +25,14 @@ class ModalityEmbedding(BaseModel):
     final_activation: string in ["sigmdoid", "tanh"]
     """
 
-    def __init__(self, dim_input, h_sizes, p_dropout=0.5, dim_output=1, final_activation="sigmoid"):
+    def __init__(
+        self,
+        dim_input,
+        h_sizes,
+        p_dropout=0.5,
+        dim_output=1,
+        final_activation="sigmoid",
+    ):
         super(ModalityEmbedding, self).__init__()
 
         self.layers = nn.ModuleList()
@@ -37,34 +44,24 @@ class ModalityEmbedding(BaseModel):
                 input_size = h
 
         if final_activation == "sigmoid":
-            assert dim_output == 1, "Sigmoid should only be used with a 1-dimensional output"
+            assert (dim_output == 1), "Sigmoid should only be used with a 1-dimensional output"
             self.layers.extend(
                 nn.ModuleList(
-                    [
-                        nn.Linear(input_size, dim_output),
-                        nn.Sigmoid(),
-                    ]
+                    [nn.Linear(input_size, dim_output), nn.Sigmoid()]
                 )
             )
         elif final_activation == "tanh":
-            assert dim_output == 1, "Tanh should only be used with a 1-dimensional output"
+            assert (dim_output == 1), "Tanh should only be used with a 1-dimensional output"
             self.layers.extend(
                 nn.ModuleList(
-                    [
-                        nn.Linear(input_size, dim_output),
-                        nn.Tanh(),
-                    ]
+                    [nn.Linear(input_size, dim_output), nn.Tanh()]
                 )
             )
 
         else:
             self.layers.extend(
                 nn.ModuleList(
-                    [
-                        nn.Linear(input_size, dim_output),
-                        nn.ReLU(),
-                        nn.Dropout(p=p_dropout),
-                    ]
+                    [nn.Linear(input_size, dim_output), nn.ReLU(), nn.Dropout(p=p_dropout)]
                 )
             )
 

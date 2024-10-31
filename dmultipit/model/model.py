@@ -57,14 +57,13 @@ class LateAttentionFusion(BaseModel):
                 Aggregated multimodal predictions for each sample of the batch (weighted sum of unimodal predictions
                 with attention weights).
         """
-        assert len(list_x) == mask.shape[-1], "mask should be of shape (batch size x n_modalities)"
-        # assert len(list_x) == mask.shape[-1] == len(self.modality_embeddings), str(len(list_x)) + " , " + str(mask.shape[-1]) + " , " + str(len(self.modality_embeddings))
+        assert (len(list_x) == mask.shape[-1]), "mask should be of shape (batch size x n_modalities)"
         logits = []
         for x, embedding in zip(list_x, self.modality_embeddings):
             logits.append(embedding(x))
-        logits = torch.where(mask, torch.cat(logits, dim=-1), torch.tensor(0.))
+        logits = torch.where(mask, torch.cat(logits, dim=-1), torch.tensor(0.0))
         attention_weights = self.multimodalattention(list_x, mask)
-        assert logits.shape == attention_weights.shape, "attention weights and logits shoudd be of same shape"
+        assert (logits.shape == attention_weights.shape), "attention weights and logits shoudd be of same shape"
         weighted_logits = attention_weights * logits
         self.attention_weights_ = attention_weights
         self.modality_preds_ = logits

@@ -47,19 +47,29 @@ class MultiModalAttention(BaseModel):
     def _build_layers(self):
         assert type(self.h1) == int or float or list, "h1 should be a list or a number"
         if self.shared_weights:
-            assert type(self.h1) == int or float, "If shared_weights is true h1 should refer to a single latent size"
-            self.embeddings = nn.ModuleList([nn.Linear(d, self.h1, bias=False) for d in self.dim_input])
-            self.fc = nn.Sequential(nn.Dropout(p=self.p_dropout), nn.Linear(self.h1, 1, bias=False))
+            assert (type(self.h1) == int or float), "If shared_weights is true h1 should refer to a single latent size"
+            self.embeddings = nn.ModuleList(
+                [nn.Linear(d, self.h1, bias=False) for d in self.dim_input]
+            )
+            self.fc = nn.Sequential(
+                nn.Dropout(p=self.p_dropout), nn.Linear(self.h1, 1, bias=False)
+            )
         else:
             if type(self.h1) == list:
                 assert len(self.dim_input) == len(self.h1), "If h1 is a list it should be of the same size as dim_input"
-                self.embeddings = nn.ModuleList([nn.Linear(self.dim_input[i], self.h1[i], bias=False)
-                                                 for i in range(len(self.dim_input))])
-                self.fc = nn.ModuleList([nn.Sequential(nn.Dropout(p=self.p_dropout), nn.Linear(h, 1)) for h in self.h1])
+                self.embeddings = nn.ModuleList(
+                    [nn.Linear(self.dim_input[i], self.h1[i], bias=False) for i in range(len(self.dim_input))]
+                )
+                self.fc = nn.ModuleList(
+                    [nn.Sequential(nn.Dropout(p=self.p_dropout), nn.Linear(h, 1)) for h in self.h1]
+                )
             else:
-                self.embeddings = nn.ModuleList([nn.Linear(d, self.h1, bias=False) for d in self.dim_input])
-                self.fc = nn.ModuleList([nn.Sequential(nn.Dropout(p=self.p_dropout), nn.Linear(self.h1, 1))
-                                         for _ in range(self.dim_input)])
+                self.embeddings = nn.ModuleList(
+                    [nn.Linear(d, self.h1, bias=False) for d in self.dim_input]
+                )
+                self.fc = nn.ModuleList(
+                    [nn.Sequential(nn.Dropout(p=self.p_dropout), nn.Linear(self.h1, 1)) for _ in range(self.dim_input)]
+                )
 
     @staticmethod
     def _init_weights(m):
@@ -152,25 +162,39 @@ class MultiModalGatedAttention(BaseModel):
     def _build_layers(self):
         assert type(self.h1) == int or float or list, "h1 should be a list or a number"
         if self.shared_weights:
-            assert type(self.h1) == int or float, "If shared_weights is true h1 should refer to a single latent size"
-            self.embeddings_1 = nn.ModuleList([nn.Linear(d, self.h1, bias=False) for d in self.dim_input])
-            self.embeddings_2 = nn.ModuleList([nn.Linear(d, self.h1, bias=False) for d in self.dim_input])
-            self.fc = nn.Sequential(nn.Dropout(p=self.p_dropout),
-                                    nn.Linear(self.h1, 1, bias=False))  # nn.Linear(self.h1, 1, bias=False)
+            assert (type(self.h1) == int or float), "If shared_weights is true h1 should refer to a single latent size"
+            self.embeddings_1 = nn.ModuleList(
+                [nn.Linear(d, self.h1, bias=False) for d in self.dim_input]
+            )
+            self.embeddings_2 = nn.ModuleList(
+                [nn.Linear(d, self.h1, bias=False) for d in self.dim_input]
+            )
+            self.fc = nn.Sequential(
+                nn.Dropout(p=self.p_dropout), nn.Linear(self.h1, 1, bias=False)
+            )  # nn.Linear(self.h1, 1, bias=False)
 
         else:
             if type(self.h1) == list:
                 assert len(self.dim_input) == len(self.h1), "If h1 is a list it should be of the same size as dim_input"
-                self.embeddings_1 = nn.ModuleList([nn.Linear(self.dim_input[i], self.h1[i], bias=False)
-                                                   for i in range(len(self.dim_input))])
-                self.embeddings_2 = nn.ModuleList([nn.Linear(self.dim_input[i], self.h1[i], bias=False)
-                                                   for i in range(len(self.dim_input))])
-                self.fc = nn.ModuleList([nn.Sequential(nn.Dropout(p=self.p_dropout), nn.Linear(h, 1)) for h in self.h1])
+                self.embeddings_1 = nn.ModuleList(
+                    [nn.Linear(self.dim_input[i], self.h1[i], bias=False) for i in range(len(self.dim_input))]
+                )
+                self.embeddings_2 = nn.ModuleList(
+                    [nn.Linear(self.dim_input[i], self.h1[i], bias=False) for i in range(len(self.dim_input))]
+                )
+                self.fc = nn.ModuleList(
+                    [nn.Sequential(nn.Dropout(p=self.p_dropout), nn.Linear(h, 1)) for h in self.h1]
+                )
             else:
-                self.embeddings_1 = nn.ModuleList([nn.Linear(d, self.h1, bias=False) for d in self.dim_input])
-                self.embeddings_2 = nn.ModuleList([nn.Linear(d, self.h1, bias=False) for d in self.dim_input])
-                self.fc = nn.ModuleList([nn.Sequential(nn.Dropout(p=self.p_dropout), nn.Linear(self.h1, 1))
-                                         for _ in range(self.dim_input)])
+                self.embeddings_1 = nn.ModuleList(
+                    [nn.Linear(d, self.h1, bias=False) for d in self.dim_input]
+                )
+                self.embeddings_2 = nn.ModuleList(
+                    [nn.Linear(d, self.h1, bias=False) for d in self.dim_input]
+                )
+                self.fc = nn.ModuleList(
+                    [nn.Sequential(nn.Dropout(p=self.p_dropout), nn.Linear(self.h1, 1)) for _ in range(self.dim_input)]
+                )
         return
 
     @staticmethod
@@ -210,13 +234,21 @@ class MultiModalGatedAttention(BaseModel):
         if self.shared_weights:
             emb = []
             for i, t in enumerate(x_list):
-                emb.append(torch.tanh(self.embeddings_1[i](t)) * torch.sigmoid(self.embeddings_2[i](t)))
+                emb.append(
+                    torch.tanh(self.embeddings_1[i](t))
+                    * torch.sigmoid(self.embeddings_2[i](t))
+                )
             emb = torch.stack(emb, dim=1)
             att = self.fc(emb).squeeze(dim=-1)  # torch.where(mask, self.fc(emb).squeeze(), torch.tensor(0.))
         else:
             att = []
             for i, t in enumerate(x_list):
-                att.append(self.fc[i](torch.tanh(self.embeddings_1[i](t)) * torch.sigmoid(self.embeddings_2[i](t))))
+                att.append(
+                    self.fc[i](
+                        torch.tanh(self.embeddings_1[i](t))
+                        * torch.sigmoid(self.embeddings_2[i](t))
+                    )
+                )
             att = torch.cat(att, dim=-1)  # torch.where(mask, torch.cat(att, dim=-1), torch.tensor(0.))
         attentions, self.attention_norm = masked_softmax(att, mask, dim=-1)
         return attentions  # F.softmax(att, dim=-1)
@@ -418,6 +450,6 @@ class MSKCCAttention(BaseModel):
             attentions.append(self.attention_layers[i](t) / self.dim_input[i])
         attentions = torch.stack(attentions, dim=1).squeeze(dim=-1)
         attentions_softplus = self.softplus(attentions)
-        attentions_scores = torch.where(mask, attentions_softplus, torch.tensor(0.))
+        attentions_scores = torch.where(mask, attentions_softplus, torch.tensor(0.0))
         self.attention_norm = attentions_scores.norm(p=2, dim=-1).mean()
         return torch.nn.functional.normalize(attentions_scores, p=1, dim=-1)
