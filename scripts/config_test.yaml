@@ -1,0 +1,37 @@
+save_dir: "C:/Users/ncaptier/OneDrive - INSTITUT CURIE/Python/attention-latefus/output/OS/test/"
+exp_id: null
+n_gpu: 0
+
+test_data:
+
+  # 1. Load raw data from your files
+  loader:
+    type: "load_TIPIT_multimoda"
+    args:
+      clinical_file: "C:/Users/ncaptier/OneDrive - INSTITUT CURIE/Python/attention-latefus/data/clinicals.csv"
+      radiomics_file: "C:/Users/ncaptier/OneDrive - INSTITUT CURIE/Python/attention-latefus/data/radiomics_absthr.csv"
+      pathomics_file: "C:/Users/ncaptier/OneDrive - INSTITUT CURIE/Python/attention-latefus/data/pathomics.csv"
+      rna_file: "C:/Users/ncaptier/OneDrive - INSTITUT CURIE/Python/attention-latefus/data/omics_bis.csv"
+
+      clinical_features:
+      radiomic_features:
+      rna_features:
+      pathomics_features:
+      outcome: 'OS'
+
+  # 2. Build a dataset from the loaded raw data
+  dataset: "TIPITDataset"
+
+
+testing:
+  seed: 0
+  save_attentions: true
+  save_modality_embeddings: False
+  save_fused_embeddings: False
+  save_modality_predictions: true
+  verbosity: 2
+  loss:
+    type: "BCELoss"
+    args:
+  metrics: ["balanced_accuracy", "roc_auc"]
+

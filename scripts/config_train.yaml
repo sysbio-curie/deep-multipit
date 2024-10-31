@@ -1,0 +1,150 @@
+save_dir: "C:/Users/ncaptier/OneDrive - INSTITUT CURIE/Python/attention-latefus/output/OS/train/"
+run_id: null
+n_gpu: 0
+
+training_data:
+
+  # Define a train-validation split if needed
+  validation_split: #0.2
+  val_index:
+
+  # 1. Load raw data from your files
+  loader:
+    type: "load_TIPIT_multimoda"
+    args:
+      clinical_file: "C:/Users/ncaptier/OneDrive - INSTITUT CURIE/Python/attention-latefus/data/clinicals.csv"
+      radiomics_file: "C:/Users/ncaptier/OneDrive - INSTITUT CURIE/Python/attention-latefus/data/radiomics_absthr.csv"
+      pathomics_file: "C:/Users/ncaptier/OneDrive - INSTITUT CURIE/Python/attention-latefus/data/pathomics.csv"
+      rna_file: "C:/Users/ncaptier/OneDrive - INSTITUT CURIE/Python/attention-latefus/data/omics_bis.csv"
+
+      clinical_features:
+      radiomic_features:
+      rna_features:
+      pathomics_features:
+      outcome: 'OS'
+
+  # 2. Build a dataset from the loaded raw data
+  dataset: "TIPITDataset"
+
+  # processing steps to apply on the different data modalities
+  processing:
+    clinicals:
+      imputer:
+        numericals: [1, 3, 4, 13, 14, 15, 16, 17, 18, 19, -4]
+        categoricals: [24]
+      scaler:
+        strategy: 'standardize'
+        features: [1, 2, 3, 4, 13, 14, 15, 16, 17, 18, 19, 25, 38]
+
+    radiomics:
+      imputer:
+        numericals: [2]
+        categoricals:
+      log_transform:
+        features: [3, 6, 7, 8, 9, 10, 11]
+      scaler:
+        strategy: 'standardize'
+
+    pathomics:
+      imputer:
+        numericals: [27, 28, 29, 31, 33, 35, 38, 40, 41, 43, 44, 45, 47, 48, 49, 52, 53, 54, 55, 56, 57, 58, 59, 60,
+                     61, 62, 63, 64, 65, 66, 67, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130,
+                     131, 132, 133]
+        categoricals:
+      scaler:
+        strategy: 'standardize'
+      pca:
+        n_components: 40
+        whiten: True
+
+    RNA:
+      scaler:
+        strategy: 'standardize'
+
+#  # predictors for independent predictions on all modalities (only relevant when independent predictions is true)
+#  prediction:
+#    clinicals:
+#      imputer:
+#        numericals: [ 1, 3, 4, 13, 14, 15, 16, 17, 18, 19, -4 ]
+#        categoricals: [ 24 ]
+#      RF:
+#        max_depth: 6
+#
+#    radiomics:
+#      imputer:
+#        numericals: [2]
+#        categoricals:
+#      RF:
+#        max_depth: 6
+#
+#    pathomics:
+#      imputer:
+#        numericals: [ 27, 28, 29, 31, 33, 35, 38, 40, 41, 43, 44, 45, 47, 48, 49, 52, 53, 54, 55, 56, 57, 58, 59, 60,
+#                      61, 62, 63, 64, 65, 66, 67, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130,
+#                      131, 132, 133 ]
+#        categoricals:
+#      RF:
+#        max_depth: 6
+#
+#    RNA:
+#      RF:
+#        max_depth: 6
+
+  # 3. Define data loader with or without oversampling and data augmentation
+
+  sampler: True #whether to use oversampling for the minority class during training (only for classification !)
+  drop_modalities: False #whether to use data augmentation during training (dropping randomly modalties)
+
+  data_loader:
+    batch_size: 32
+    shuffle: false
+    num_workers: 0
+
+
+training:
+
+  seed: 10
+  save_period: null
+  save_best_only: true
+  print_period: 2
+  verbosity: 1
+  tensorboard: true
+  monitor: "ema_min val_loss"
+  ema_alpha: 0.6
+  early_stop: 50
+  epochs: 200
+  loss:
+    type: "BCELogitLoss" # "BCELoss"
+    args:
+  l2_penalty: 0.001
+  attention_penalty: null
+  balanced_weights: True
+  metrics: [ "balanced_accuracy", "roc_auc" ]
+
+
+  pseudo_labelling: false
+  unlabelled_loss:
+    type: "UnlabelledBCELoss"
+    args:
+      threshold: 0.2
+
+  unlabelled_scheduler:
+    type: "StepScheduler"
+    args:
+      wait: 40
+
+  optimizer:
+    type: "Adam"
+    args:
+      lr: 0.001
+      weight_decay: 0.005
+ #     momentum: 0.9
+
+#  lr_scheduler:
+#    type: "StepLR"
+#    args:
+#      step_size: 50
+#      gamma: 0.1
+
+  lr_scheduler:
+    type:
