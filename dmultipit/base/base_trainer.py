@@ -43,16 +43,16 @@ class BaseTrainer:
     """
 
     def __init__(
-        self,
-        model,
-        criterion,
-        metric_ftns,
-        optimizer,
-        config,
-        log_dir,
-        ensembling_index,
-        save_architecture=False,
-        disable_checkpoint=False,
+            self,
+            model,
+            criterion,
+            metric_ftns,
+            optimizer,
+            config,
+            log_dir,
+            ensembling_index,
+            save_architecture=False,
+            disable_checkpoint=False,
     ):
 
         self.config = config
@@ -150,16 +150,16 @@ class BaseTrainer:
                 try:
                     # check whether model performance improved or not, according to specified metric(mnt_metric)
                     if self.mnt_mode in ["ema_min", "ema_max"]:
-                        self.mnt_ema = (1 - self.mnt_ema_alpha) * log[self.mnt_metric]\
+                        self.mnt_ema = (1 - self.mnt_ema_alpha) * log[self.mnt_metric] \
                                        + self.mnt_ema_alpha * self.mnt_ema
                         # debias EMA (see tensorboard)
-                        debias_weight = (1 - self.mnt_ema_alpha**epoch) if self.mnt_ema_alpha < 1 else 1
-                        improved = (self.mnt_mode == "ema_min" and self.mnt_ema / debias_weight <= self.mnt_best)\
+                        debias_weight = (1 - self.mnt_ema_alpha ** epoch) if self.mnt_ema_alpha < 1 else 1
+                        improved = (self.mnt_mode == "ema_min" and self.mnt_ema / debias_weight <= self.mnt_best) \
                                    or \
                                    (self.mnt_mode == "ema_max" and self.mnt_ema / debias_weight >= self.mnt_best)
                     else:
-                        improved = (self.mnt_mode == "min" and log[self.mnt_metric] <= self.mnt_best)\
-                                   or\
+                        improved = (self.mnt_mode == "min" and log[self.mnt_metric] <= self.mnt_best) \
+                                   or \
                                    (self.mnt_mode == "max" and log[self.mnt_metric] >= self.mnt_best)
                 except KeyError:
                     self.logger.warning(
@@ -171,7 +171,7 @@ class BaseTrainer:
 
                 if improved:
                     self.mnt_best = log[self.mnt_metric] if self.mnt_mode in ["min", "max"] \
-                                                         else self.mnt_ema / debias_weight
+                        else self.mnt_ema / debias_weight
                     not_improved_count = 0
                     best = True
                 else:
@@ -270,8 +270,8 @@ class BaseTrainer:
 
         # load optimizer state from checkpoint only when optimizer type is not changed.
         if (
-            checkpoint["config"]["training"]["optimizer"]["type"]
-            != self.config["training"]["optimizer"]["type"]
+                checkpoint["config"]["training"]["optimizer"]["type"]
+                != self.config["training"]["optimizer"]["type"]
         ):
             self.logger.warning(
                 "Warning: Optimizer type given in config file is different from that of checkpoint. "
