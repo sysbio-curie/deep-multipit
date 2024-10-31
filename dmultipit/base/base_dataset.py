@@ -38,34 +38,42 @@ class MultiModalDataset(Dataset):
         * If sklearn.base.TransformerMixin it should correspond to a fitted transformer !
 
     transform: callable or None
-            Transformation to apply to each sample in the batch (e.g., data augmentation). If None no transformation is
-            performed. THe default is None.
+            Transformation to apply to each sample in the batch (e.g., data augmentation). If None, no transformation is
+            performed. The default is None.
     """
 
-    def __init__(self, list_raw_data, labels, list_unimodal_processings, multimodal_processing, transform=None):
+    def __init__(
+            self,
+            list_raw_data,
+            labels,
+            list_unimodal_processings,
+            multimodal_processing,
+            transform=None,
+    ):
         self.list_raw_data = tuple()
         self.sample_names = None
+
         for data in list_raw_data:
-            assert (len(self.list_raw_data) == 0) or data.shape[0] == self.list_raw_data[0].shape[0], "all data sets " \
-                                                                                                      "should have " \
-                                                                                                      "the same " \
-                                                                                                      "number of " \
-                                                                                                      "samples "
+            assert (len(self.list_raw_data) == 0) or data.shape[0] == self.list_raw_data[0].shape[0], ("all data sets "
+                                                                                                       "should have "
+                                                                                                       "the same "
+                                                                                                       "number of "
+                                                                                                       "samples ")
             if isinstance(data, pd.DataFrame):
                 self.list_raw_data = self.list_raw_data + (data.values,)
-                assert (self.sample_names is None) or (len(set(data.index) ^ set(self.sample_names)) == 0), "all " \
-                                                                                                            "dataframes" \
-                                                                                                            " should" \
-                                                                                                            " have" \
-                                                                                                            " the same" \
-                                                                                                            " indexes "
+                assert (self.sample_names is None) or (len(set(data.index) ^ set(self.sample_names)) == 0), ("all "
+                                                                                                        "dataframes"
+                                                                                                        " should have"
+                                                                                                        " the same"
+                                                                                                        " indexes ")
                 self.sample_names = data.index
             elif isinstance(data, np.ndarray):
                 self.list_raw_data = self.list_raw_data + (data.copy(),)
             else:
                 raise ValueError("Data sets should be either pd.DataFrame or np.ndarray")
+
         if self.sample_names is None:
-            self.sample_names = ['sample ' + str(i) for i in range(self.list_raw_data[0].shape[0])]
+            self.sample_names = ["sample " + str(i) for i in range(self.list_raw_data[0].shape[0])]
 
         self.labels = labels.values if isinstance(labels, (pd.Series, pd.DataFrame)) else labels
 
@@ -79,12 +87,12 @@ class MultiModalDataset(Dataset):
             self.list_raw_data = filtered_data
 
         # compute weights for batch sampling (only for binary classification and labelled data)
-        if type_of_target(self.labels[~np.isnan(self.labels)]) == 'binary':
+        if type_of_target(self.labels[~np.isnan(self.labels)]) == "binary":
             counts_0, counts_1 = np.nansum(self.labels == 0), np.nansum(self.labels == 1)
             self.sample_weights = []
             for label in self.labels:
                 if not np.isnan(label):
-                    self.sample_weights.append(1 / counts_0) if label == 0 else self.sample_weights.append(1 / counts_1)
+                    self.sample_weights.append(1/counts_0) if label == 0 else self.sample_weights.append(1/counts_1)
                 else:
                     self.sample_weights.append(np.nan)
         else:
@@ -94,11 +102,11 @@ class MultiModalDataset(Dataset):
         self.masks = self._create_masks(self.list_raw_data)
 
         # Apply processing transformations to each individual modality (either pre-fitted operations or fit it to the
-        # whole data.
+        # whole data).
         self.list_unimodal_processings = self.init_unimodal_processing(list_unimodal_processings)
         self.list_transformed_data = []
         for i, (processor, raw_data) in enumerate(zip(self.list_unimodal_processings, self.list_raw_data)):
-            mask_moda = (self.masks[:, i] == 1)
+            mask_moda = self.masks[:, i] == 1
             if processor is not None:
                 temp = processor.transform(raw_data[mask_moda])
                 data = np.full((raw_data.shape[0], temp.shape[1]), np.nan)
@@ -110,9 +118,9 @@ class MultiModalDataset(Dataset):
         # Apply processing transformations to all the modalities
         self.multimodal_processing = self.init_multimodal_processing(multimodal_processing)
         if self.multimodal_processing is not None:
-            self.list_transformed_data = self.multimodal_processing.transform_multimodal(
-                np.hstack(self.list_transformed_data)
-            )
+            self.list_transformed_data = (self.multimodal_processing
+                                              .transform_multimodal(np.hstack(self.list_transformed_data))
+                                          )
 
         # Replace NaN values from missing modalities by 0 values
         final_list = []
@@ -141,7 +149,7 @@ class MultiModalDataset(Dataset):
         return np.hstack(modality_masks)
 
     def init_unimodal_processing(self, list_unimodal_processings):
-        """ Initialize unimodal processing operations. Check that transformers are already fitted or define and
+        """Initialize unimodal processing operations. Check that transformers are already fitted or define and
         fit a new transformer from a dictionary (as implemented in the fit_process method !)
 
         Parameters
@@ -175,14 +183,16 @@ class MultiModalDataset(Dataset):
             # 3. New pre-processing to be fitted on raw_data (remove samples with missing modalities)
             elif isinstance(processing, dict):
                 mask = np.sum(~np.isnan(self.list_raw_data[i]), axis=1) > 0
-                processing = self.fit_process(X=self.list_raw_data[i][mask], y=self.labels[mask], params=processing)
+                processing = self.fit_process(
+                    X=self.list_raw_data[i][mask],
+                    y=self.labels[mask],
+                    params=processing,
+                )
                 if _check_transform(processing):
                     output.append(processing)
                 else:
-                    print(
-                        "when processing is a dictionary it should refer to a transformer class which inherits from"
-                        " sklearn.base.TransformerMixin."
-                    )
+                    print("when processing is a dictionary it should refer to a transformer class which inherits from"
+                          " sklearn.base.TransformerMixin.")
                     raise
             # 4. Raise an error if processing is none of the above
             else:
@@ -193,7 +203,7 @@ class MultiModalDataset(Dataset):
         return output
 
     def init_multimodal_processing(self, multimodal_processing):
-        """ Initialize multimodal processing operations. Check that transformers are already fitted or define and
+        """Initialize multimodal processing operations. Check that transformers are already fitted or define and
         fit a new transformer from a dictionary (as implemented in the fit_process method !)
 
         Parameters
@@ -220,7 +230,7 @@ class MultiModalDataset(Dataset):
                 print("processing is not fitted")
                 raise
             else:
-                if hasattr(multimodal_processing, 'transform_multimodal'):
+                if hasattr(multimodal_processing, "transform_multimodal"):
                     output = multimodal_processing
                 else:
                     print("Processing must have a transform_multimodal method")
@@ -233,11 +243,13 @@ class MultiModalDataset(Dataset):
             for m, data in enumerate(self.list_transformed_data):
                 modalities += [m] * data.shape[1]
             modalities = np.array(modalities)
-            multimodal_processing = self.fit_multimodal_process(X=full_data,
-                                                                y=self.labels[mask],
-                                                                params=multimodal_processing,
-                                                                modalities=modalities)
-            if hasattr(multimodal_processing, 'transform_multimodal'):
+            multimodal_processing = self.fit_multimodal_process(
+                X=full_data,
+                y=self.labels[mask],
+                params=multimodal_processing,
+                modalities=modalities,
+            )
+            if hasattr(multimodal_processing, "transform_multimodal"):
                 output = multimodal_processing
             else:
                 print(
@@ -267,16 +279,15 @@ class MultiModalDataset(Dataset):
         for i, transformed_data in enumerate(self.list_transformed_data):
             data = transformed_data[idx, :].reshape(1, -1) if isinstance(idx, int) else transformed_data[idx, :]
             item = item + (torch.squeeze(torch.from_numpy(data).to(dtype=torch.float), 0),)
-        item = item + (
-            torch.tensor(mask).squeeze(dim=0), torch.tensor(self.labels[idx]))  # torch.tensor(mask).squeeze()
+        item = item + (torch.tensor(mask).squeeze(dim=0), torch.tensor(self.labels[idx]),)
+
         if self.transform is not None:
             item = self.transform(item)
         return item
 
 
 def _check_is_fitted(test_object):
-    """ Check whether the object is fitted (or whether each element is fitted if the object is a pipeline).
-    """
+    """Check whether the object is fitted (or whether each element is fitted if the object is a pipeline)."""
     classes = inspect.getmro(test_object.__class__)
     if classes[0].__name__ == "Pipeline":
         check_is_fitted(test_object[-1])
@@ -286,7 +297,7 @@ def _check_is_fitted(test_object):
 
 
 def _check_transform(test_object):
-    """ Check whether the object belongs to the sklearn.base.TransformerMixin class (or a pipeline composed of
+    """Check whether the object belongs to the sklearn.base.TransformerMixin class (or a pipeline composed of
     transformers).
     """
     check = False

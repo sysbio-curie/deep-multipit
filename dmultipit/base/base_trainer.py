@@ -42,8 +42,18 @@ class BaseTrainer:
         If true, no checkpoint is saved. The default is False.
     """
 
-    def __init__(self, model, criterion, metric_ftns, optimizer, config, log_dir, ensembling_index,
-                 save_architecture=False, disable_checkpoint=False):
+    def __init__(
+        self,
+        model,
+        criterion,
+        metric_ftns,
+        optimizer,
+        config,
+        log_dir,
+        ensembling_index,
+        save_architecture=False,
+        disable_checkpoint=False,
+    ):
 
         self.config = config
         self.logger = config.get_logger("trainer", config["training"]["verbosity"])
@@ -94,10 +104,16 @@ class BaseTrainer:
 
         if save_architecture:
             if self.ensembling_index is not None:
-                write_yaml(config["architecture"],
-                           self.checkpoint_dir / "config_architecture_{}.yaml".format(self.ensembling_index))
+                write_yaml(
+                    config["architecture"],
+                    self.checkpoint_dir
+                    / "config_architecture_{}.yaml".format(self.ensembling_index),
+                )
             else:
-                write_yaml(config["architecture"], self.checkpoint_dir / "config_architecture.yaml")
+                write_yaml(
+                    config["architecture"],
+                    self.checkpoint_dir / "config_architecture.yaml",
+                )
         self.disable_checkpoint = disable_checkpoint
 
     @abstractmethod
@@ -134,32 +150,28 @@ class BaseTrainer:
                 try:
                     # check whether model performance improved or not, according to specified metric(mnt_metric)
                     if self.mnt_mode in ["ema_min", "ema_max"]:
-                        self.mnt_ema = (1-self.mnt_ema_alpha)*log[self.mnt_metric] + self.mnt_ema_alpha*self.mnt_ema
+                        self.mnt_ema = (1 - self.mnt_ema_alpha) * log[self.mnt_metric]\
+                                       + self.mnt_ema_alpha * self.mnt_ema
                         # debias EMA (see tensorboard)
                         debias_weight = (1 - self.mnt_ema_alpha**epoch) if self.mnt_ema_alpha < 1 else 1
-                        improved = (
-                                           self.mnt_mode == "ema_min" and self.mnt_ema/debias_weight <= self.mnt_best
-                                   ) or (
-                                           self.mnt_mode == "ema_max" and self.mnt_ema/debias_weight >= self.mnt_best
-                                   )
+                        improved = (self.mnt_mode == "ema_min" and self.mnt_ema / debias_weight <= self.mnt_best)\
+                                   or \
+                                   (self.mnt_mode == "ema_max" and self.mnt_ema / debias_weight >= self.mnt_best)
                     else:
-                        improved = (
-                            self.mnt_mode == "min" and log[self.mnt_metric] <= self.mnt_best
-                        ) or (
-                            self.mnt_mode == "max" and log[self.mnt_metric] >= self.mnt_best
-                        )
+                        improved = (self.mnt_mode == "min" and log[self.mnt_metric] <= self.mnt_best)\
+                                   or\
+                                   (self.mnt_mode == "max" and log[self.mnt_metric] >= self.mnt_best)
                 except KeyError:
                     self.logger.warning(
                         "Warning: Metric '{}' is not found. "
-                        "Model performance monitoring is disabled.".format(
-                            self.mnt_metric
-                        )
+                        "Model performance monitoring is disabled.".format(self.mnt_metric)
                     )
                     self.mnt_mode = "off"
                     improved = False
 
                 if improved:
-                    self.mnt_best = log[self.mnt_metric] if self.mnt_mode in ["min", "max"] else self.mnt_ema/debias_weight
+                    self.mnt_best = log[self.mnt_metric] if self.mnt_mode in ["min", "max"] \
+                                                         else self.mnt_ema / debias_weight
                     not_improved_count = 0
                     best = True
                 else:
@@ -182,7 +194,11 @@ class BaseTrainer:
         # save last model (if save_best_only and save_period are disabled)
         if not self.disable_checkpoint:
             if (not self.save_best_only) and (self.save_period is None):
-                self.logger.info("Save checkpoint from last epoch (i.e epoch " + str(self.epochs) + ")")
+                self.logger.info(
+                    "Save checkpoint from last epoch (i.e epoch "
+                    + str(self.epochs)
+                    + ")"
+                )
                 self._save_checkpoint(self.epochs)
 
     def _save_checkpoint(self, epoch, save_best=False, save_best_only=False):
@@ -208,15 +224,23 @@ class BaseTrainer:
         }
         if not save_best_only:
             if self.ensembling_index is not None:
-                filename = str(self.checkpoint_dir / "checkpoint-epoch{}_{}.pth".format(epoch, self.ensembling_index))
+                filename = str(
+                    self.checkpoint_dir
+                    / "checkpoint-epoch{}_{}.pth".format(epoch, self.ensembling_index)
+                )
             else:
-                filename = str(self.checkpoint_dir / "checkpoint-epoch{}.pth".format(epoch))
+                filename = str(
+                    self.checkpoint_dir / "checkpoint-epoch{}.pth".format(epoch)
+                )
             torch.save(state, filename)
             self.logger.info("Saving checkpoint: {} ...".format(filename))
 
         if save_best:
             if self.ensembling_index is not None:
-                best_path = str(self.checkpoint_dir / "model_best_{}.pth".format(self.ensembling_index))
+                best_path = str(
+                    self.checkpoint_dir
+                    / "model_best_{}.pth".format(self.ensembling_index)
+                )
             else:
                 best_path = str(self.checkpoint_dir / "model_best.pth")
             torch.save(state, best_path)

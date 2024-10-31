@@ -5,7 +5,13 @@ from sklearn.decomposition import PCA
 from sklearn.impute import SimpleImputer, KNNImputer
 from sklearn.impute._base import _BaseImputer
 from sklearn.metrics import roc_auc_score
-from sklearn.preprocessing import StandardScaler, RobustScaler, MinMaxScaler, OneHotEncoder, PowerTransformer
+from sklearn.preprocessing import (
+    StandardScaler,
+    RobustScaler,
+    MinMaxScaler,
+    OneHotEncoder,
+    PowerTransformer,
+)
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 from statsmodels.tools.tools import add_constant
 
@@ -65,8 +71,11 @@ class CustomOmicsImputer(BaseEstimator, TransformerMixin):
         """
         self.imputer_ = KNNImputer(n_neighbors=1)
         X[:, self.site_feature] = self.imputer_.fit_transform(X)[:, self.site_feature]
-        self.encoder_ = OneHotEncoder(handle_unknown='infrequent_if_exist', min_frequency=self.min_frequency,
-                                      sparse_output=False).fit(X[:, self.site_feature].reshape(-1, 1))
+        self.encoder_ = OneHotEncoder(
+            handle_unknown="infrequent_if_exist",
+            min_frequency=self.min_frequency,
+            sparse_output=False,
+        ).fit(X[:, self.site_feature].reshape(-1, 1))
         temp = self.encoder_.transform(X[:, self.site_feature].reshape(-1, 1))
         self.len_features_ = (X.shape[1] - 1) + temp.shape[1]
         return self
@@ -258,7 +267,7 @@ class CustomSelection(BaseEstimator, TransformerMixin):
             delete = []
             for i in range(len(self.features_) - 1):
                 if i not in delete:
-                    delete += list((i + 1) + np.where(corr[i, i + 1:] > self.max_corr)[0])
+                    delete += list((i + 1) + np.where(corr[i, i + 1 :] > self.max_corr)[0])
             delete = np.unique(delete)
             if len(delete) > 0:
                 self.features_ = np.delete(self.features_, delete)
@@ -286,7 +295,7 @@ class CustomSelection(BaseEstimator, TransformerMixin):
                 self.features_ = np.array(list_features)
         else:
             if self.max_number is not None and len(self.features_) > self.max_number:
-                self.features_ = self.features_[:self.max_number]
+                self.features_ = self.features_[: self.max_number]
         return self
 
     def transform(self, X):
@@ -316,13 +325,15 @@ class CustomSelection(BaseEstimator, TransformerMixin):
             List of 2D arrays of shape (n_samples, n_selected_features (for that modality))
         """
         if self.n_select_modalities_ is None:
-            raise ValueError("The modality each feature belongs to shoud have been specified with the modalities "
-                             "argument of the fit method.")
+            raise ValueError(
+                "The modality each feature belongs to shoud have been specified with the modalities "
+                "argument of the fit method."
+            )
         X_all_selected = X[:, self.features_]
         output = []
         n = 0
         for size in self.n_select_modalities_:
-            output.append(X_all_selected[:, n:n + size])
+            output.append(X_all_selected[:, n : n + size])
             n += size
         return output
 
@@ -346,7 +357,7 @@ class CustomScaler(BaseEstimator, TransformerMixin):
         Fitted scaler based on the specified strategy.
     """
 
-    def __init__(self, features=None, strategy='standardize'):
+    def __init__(self, features=None, strategy="standardize"):
         self.features = features
         self.strategy = strategy
 
@@ -367,16 +378,14 @@ class CustomScaler(BaseEstimator, TransformerMixin):
             Fitted estimator.
         """
 
-        if self.strategy == 'standardize':
+        if self.strategy == "standardize":
             self.scaler_ = StandardScaler()
-        elif self.strategy == 'robust':
+        elif self.strategy == "robust":
             self.scaler_ = RobustScaler()
-        elif self.strategy == 'minmax':
+        elif self.strategy == "minmax":
             self.scaler_ = MinMaxScaler()
         else:
-            raise ValueError(
-                "Only 'standardize', 'robust', or 'minmax' are available for the scaling strategy"
-            )
+            raise ValueError("Only 'standardize', 'robust', or 'minmax' are available for the scaling strategy")
 
         # deal with cases where X is empty ?
         if X.shape[1] == 0:
@@ -557,6 +566,7 @@ class CustomVIF(BaseEstimator, TransformerMixin):
         Indexes of selected features.
 
     """
+
     def __init__(self, cutoff=5, power_transform=False):
         self.cutoff = cutoff
         self.power_transform = power_transform
@@ -676,12 +686,17 @@ class MSKCCRadiomicsTransform(BaseEstimator, TransformerMixin):
     """
 
     # aggregation can be either by average or taking the first lesion sorted by index
-    def __init__(self, lesion_type, robustness_cutoff, outlier_cutoff, l1_C, aggregation):
+    def __init__(
+        self, lesion_type, robustness_cutoff, outlier_cutoff, l1_C, aggregation
+    ):
         self.lesion_type = lesion_type
         self.robustness_cutoff = robustness_cutoff
         self.outlier_cutoff = outlier_cutoff
         self.l1_C = l1_C
-        assert aggregation in ['mean', 'largest'], "aggregation should either be 'mean' or 'largest'"
+        assert aggregation in [
+            "mean",
+            "largest",
+        ], "aggregation should either be 'mean' or 'largest'"
         self.aggregation = aggregation
 
     def fit(self, X, y):
@@ -713,18 +728,21 @@ class MSKCCRadiomicsTransform(BaseEstimator, TransformerMixin):
         self.selected_features_ = {}
         if isinstance(self.lesion_type, list):
             for site in self.lesion_type:
-                self.selected_features_[site] = select_radiomics_features_elastic(data[data['site'] == site],
+                self.selected_features_[site] = select_radiomics_features_elastic(data[data["site"] == site],
                                                                                   y,
                                                                                   self.l1_C,
                                                                                   self.outlier_cutoff,
-                                                                                  self.robustness_cutoff)
+                                                                                  self.robustness_cutoff,)
         elif isinstance(self.lesion_type, str):
-            self.selected_features_[self.lesion_type] = select_radiomics_features_elastic(data[data['site'] ==
-                                                                                               self.lesion_type],
-                                                                                          y,
-                                                                                          self.l1_C,
-                                                                                          self.outlier_cutoff,
-                                                                                          self.robustness_cutoff)
+            self.selected_features_[
+                self.lesion_type
+            ] = select_radiomics_features_elastic(
+                data[data["site"] == self.lesion_type],
+                y,
+                self.l1_C,
+                self.outlier_cutoff,
+                self.robustness_cutoff,
+            )
         return self
 
     def transform(self, X):
@@ -748,20 +766,39 @@ class MSKCCRadiomicsTransform(BaseEstimator, TransformerMixin):
         assert isinstance(X, tuple), "X should be a tuple with pandas dataframe and indexes"
         data, indexes = X
         output = tuple()
-        if self.aggregation == 'mean':
+        if self.aggregation == "mean":
             data = data.reset_index()
-            data = data[data["job_tag"] == 'filtered-radiomics'].drop(columns=['job_tag', 'lesion_index']) \
-                .set_index('main_index')
+            data = (
+                data[data["job_tag"] == "filtered-radiomics"]
+                .drop(columns=["job_tag", "lesion_index"])
+                .set_index("main_index")
+            )
             for lesion_type, selected_features in self.selected_features_.items():
-                transformed_data = data[list(selected_features) + ['site']].groupby(level=0) \
-                    .apply(_agg_average, site=lesion_type).drop('index', errors='ignore').reindex(indexes).values
+                transformed_data = (
+                    data[list(selected_features) + ["site"]]
+                    .groupby(level=0)
+                    .apply(_agg_average, site=lesion_type)
+                    .drop("index", errors="ignore")
+                    .reindex(indexes)
+                    .values
+                )
                 output = output + (transformed_data,)
-        elif self.aggregation == 'largest':
+        elif self.aggregation == "largest":
             data = data.reset_index()
-            data = data[data["job_tag"] == 'filtered-radiomics'].drop(columns='job_tag').set_index('main_index')
+            data = (
+                data[data["job_tag"] == "filtered-radiomics"]
+                .drop(columns="job_tag")
+                .set_index("main_index")
+            )
             for lesion_type, selected_features in self.selected_features_.items():
-                transformed_data = data[list(selected_features) + ['site', 'lesion_index']].groupby(level=0) \
-                    .apply(_agg_largest, site=lesion_type).droplevel(1).reindex(indexes).values
+                transformed_data = (
+                    data[list(selected_features) + ["site", "lesion_index"]]
+                    .groupby(level=0)
+                    .apply(_agg_largest, site=lesion_type)
+                    .droplevel(1)
+                    .reindex(indexes)
+                    .values
+                )
                 output = output + (transformed_data,)
         return output
 
@@ -770,7 +807,7 @@ def _agg_average(g, site):
     """
     Compute the average value across different target lesions of the same type for each sample and each feature
     """
-    g = g[g['site'] == site].drop(columns='site')
+    g = g[g["site"] == site].drop(columns="site")
     return g.mean(axis=0)
 
 
@@ -778,6 +815,11 @@ def _agg_largest(g, site):
     """
     Return the values associated with the largest lesion when there are multiple lesions of the same type for one sample
     """
-    g = g[g['site'] == site].drop(columns='site').sort_values('lesion_index', ascending=True) \
-        .drop(columns='lesion_index').reset_index()
-    return g.drop_duplicates(subset=['main_index']).drop(columns="main_index")
+    g = (
+        g[g["site"] == site]
+        .drop(columns="site")
+        .sort_values("lesion_index", ascending=True)
+        .drop(columns="lesion_index")
+        .reset_index()
+    )
+    return g.drop_duplicates(subset=["main_index"]).drop(columns="main_index")

@@ -4,7 +4,7 @@ from scipy.stats import zscore
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import PowerTransformer
 
-RAD_JOB_TAG = 'filtered-radiomics'
+RAD_JOB_TAG = "filtered-radiomics"
 
 
 def select_outlier_stable_features(df, cutoff):
@@ -29,9 +29,9 @@ def select_outlier_stable_features(df, cutoff):
         Selected features without outliers
     """
     df = df.reset_index()
-    df = df[df['job_tag'] == RAD_JOB_TAG]
+    df = df[df["job_tag"] == RAD_JOB_TAG]
 
-    x = df.copy(deep=True).drop(columns=["main_index", "job_tag", "site", "index"], errors='ignore')
+    x = df.copy(deep=True).drop(columns=["main_index", "job_tag", "site", "index"], errors="ignore")
     x[(np.abs(zscore(x.values.astype(float))) > cutoff)] = np.nan
     outlier_counts = x.isna().sum()
 
@@ -61,10 +61,13 @@ def select_by_interlesion_variance(df, cutoff=0.1):
     robust_features: pandas Index
         Selected robust features
     """
-    df = df.reset_index().set_index(['main_index', 'lesion_index'])
-    df = df[df['job_tag'] == 'pertubation-radiomics']
+    df = df.reset_index().set_index(["main_index", "lesion_index"])
+    df = df[df["job_tag"] == "pertubation-radiomics"]
 
-    robustness_score = df.groupby(level=[0, 1]).agg(np.std).mean() / df.groupby(level=[0, 1]).agg(np.mean).std()
+    robustness_score = (
+        df.groupby(level=[0, 1]).agg(np.std).mean()
+        / df.groupby(level=[0, 1]).agg(np.mean).std()
+    )
     robust_features = robustness_score[robustness_score < cutoff].index
 
     # variance_ranks = interlesion_variance.rank(method='min').rename("interlesion_variance_rank")
@@ -72,8 +75,7 @@ def select_by_interlesion_variance(df, cutoff=0.1):
     return robustness_score, robust_features
 
 
-def select_radiomics_features_elastic(train_df, outcomes_df, l1_C=0.1, outlier_cutoff=6,
-                                      robustness_cutoff=0.15):
+def select_radiomics_features_elastic(train_df, outcomes_df, l1_C=0.1, outlier_cutoff=6, robustness_cutoff=0.15):
     """
     Select radiomic features with elasticnet logistic regression (i.e., non-zero coefficients), looking only at robust
     features, without outliers.
@@ -112,11 +114,12 @@ def select_radiomics_features_elastic(train_df, outcomes_df, l1_C=0.1, outlier_c
     """
     # 1. Select robust features without outliers
     _, sel_fx_outlier = select_outlier_stable_features(train_df, cutoff=outlier_cutoff)
-    _, sel_fx_robust = select_by_interlesion_variance(train_df, cutoff=robustness_cutoff)
+    _, sel_fx_robust = select_by_interlesion_variance(train_df, cutoff=robustness_cutoff
+                                                      )
     fx_to_use = sorted(set(sel_fx_outlier).intersection(set(sel_fx_robust)))
 
     # 2. Select remaining features with elastic net logistic coefficients (i.e., non-zero coefficient)
-    train_df = train_df[train_df['job_tag'] == RAD_JOB_TAG].drop(columns=['job_tag', 'site'])[fx_to_use]
+    train_df = train_df[train_df["job_tag"] == RAD_JOB_TAG].drop(columns=["job_tag", "site"])[fx_to_use]
     Y_train = outcomes_df.loc[train_df.index]
 
     # 2.1 Pre-process data with power transform to deal with skewed data
@@ -124,8 +127,15 @@ def select_radiomics_features_elastic(train_df, outcomes_df, l1_C=0.1, outlier_c
     X_train = scaler.fit_transform(train_df)
 
     # 2.2 Fit logistic regression with elastic net penalty
-    clf_lr = LogisticRegression(penalty='elasticnet', random_state=0, max_iter=2500, solver='saga', l1_ratio=0.5,
-                                C=l1_C, class_weight='balanced')
+    clf_lr = LogisticRegression(
+        penalty="elasticnet",
+        random_state=0,
+        max_iter=2500,
+        solver="saga",
+        l1_ratio=0.5,
+        C=l1_C,
+        class_weight="balanced",
+    )
     clf_lr.fit(X_train, Y_train)
 
     # 2.3 Keep features with non-zero coefficients

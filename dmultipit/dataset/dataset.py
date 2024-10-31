@@ -37,20 +37,20 @@ class TIPITDataset(MultiModalDataset):
         for key, value in params.items():
             if value is None:
                 value = {}
-            if key == 'imputer':
-                steps.append(('imputer', CustomImputer(**value)))
-            elif key == 'scaler':
-                steps.append(('scaler', CustomScaler(**value)))
-            elif key == 'selection':
-                steps.append(('selection', CustomSelection(**value)))
-            elif key == 'vif':
-                steps.append(('vif', CustomVIF(**value)))
-            elif key == 'pca':
-                steps.append(('pca', CustomPCA(**value)))
-            elif key == 'log_transform':
-                steps.append(('log_transformer', CustomLogTransform(**value)))
+            if key == "imputer":
+                steps.append(("imputer", CustomImputer(**value)))
+            elif key == "scaler":
+                steps.append(("scaler", CustomScaler(**value)))
+            elif key == "selection":
+                steps.append(("selection", CustomSelection(**value)))
+            elif key == "vif":
+                steps.append(("vif", CustomVIF(**value)))
+            elif key == "pca":
+                steps.append(("pca", CustomPCA(**value)))
+            elif key == "log_transform":
+                steps.append(("log_transformer", CustomLogTransform(**value)))
             elif key == "omics_imputer":
-                steps.append(('omics_imputer', CustomOmicsImputer(**value)))
+                steps.append(("omics_imputer", CustomOmicsImputer(**value)))
             else:
                 raise ValueError("only imputation, scaling, feature selection and pca are implemented")
 
@@ -93,9 +93,10 @@ class TIPITDataset(MultiModalDataset):
         outputs
 
         """
-        if (len(params) > 1) or ('selection' not in params.keys()):
+        if (len(params) > 1) or ("selection" not in params.keys()):
             raise ValueError("Only multimodal selection is currently implemented")
-        multimodal_transformer = CustomSelection(**params["selection"]).fit(X, y, modalities=modalities)
+        multimodal_transformer = CustomSelection(**params["selection"]).fit(X, y, modalities=modalities
+                                                                            )
         return multimodal_transformer
 
 
@@ -129,13 +130,20 @@ class MSKCCDataset(MultiModalDataset):
     (https://doi.org/10.1038/s43018-022-00416-8)
     """
 
-    def __init__(self, list_raw_data, labels, list_unimodal_processings, transform=None, radiomics=None,
-                 rad_transform=None):
+    def __init__(
+        self,
+        list_raw_data,
+        labels,
+        list_unimodal_processings,
+        transform=None,
+        radiomics=None,
+        rad_transform=None,
+    ):
         # Transform and add radiomics data to the list of raw modalities
         if radiomics is not None:
             assert isinstance(radiomics, int), ""
-            assert rad_transform is not None, "if radiomics is not None a transformer for radiomics data should be" \
-                                              " provided"
+            assert rad_transform is not None, ("if radiomics is not None a transformer for radiomics data should be"
+                                               " provided")
             n_modalities = len(list_raw_data)
             radiomics_data, self.rad_transform = self.transform_radiomics(list_raw_data[radiomics],
                                                                           labels,
@@ -148,12 +156,17 @@ class MSKCCDataset(MultiModalDataset):
                 list_raw_data = list_raw_data[:radiomics] + list(radiomics_data) + list_raw_data[radiomics + 1:]
 
         # Initialize MultiModalDataset with the updated list of raw data (i.e., transformed radiomics included)
-        super(MSKCCDataset, self).__init__(list_raw_data, labels, list_unimodal_processings,
-                                           multimodal_processing=None, transform=transform)
+        super(MSKCCDataset, self).__init__(
+            list_raw_data,
+            labels,
+            list_unimodal_processings,
+            multimodal_processing=None,
+            transform=transform,
+        )
 
     @staticmethod
     def transform_radiomics(radiomics_data, labels, rad_transform):
-        """ Fit and transform (or just transform if already fitted) radiomics data
+        """Fit and transform (or just transform if already fitted) radiomics data
 
         Parameters
         ----------
@@ -169,7 +182,7 @@ class MSKCCDataset(MultiModalDataset):
             * If dictionary, corresponds to the set of parameters for _transformers.MSKCCRadiomicsTransform object which
             will be fitted to the provided radiomics_data
             * If _transformers.MSKCCRadiomicsTransform object, it should be already fitted.
-            
+
         Returns
         -------
         output: list of 2D pandas dataframes of shape (n_samples, radiomic_features)
@@ -187,28 +200,32 @@ class MSKCCDataset(MultiModalDataset):
             output = rad_transform.transform(radiomics_data)
             return output, rad_transform
         else:
-            raise ValueError("rad_transform should either be a dictionary of parameters to instantiate and fit a "
-                             "MSKCCRadiomicsTransform object or an already fitted MSKCCRadiomicsTransform object.")
+            raise ValueError(
+                "rad_transform should either be a dictionary of parameters to instantiate and fit a "
+                "MSKCCRadiomicsTransform object or an already fitted MSKCCRadiomicsTransform object."
+            )
 
     def fit_process(self, X, y, params):
         steps = []
         for key, value in params.items():
             if value is None:
                 value = {}
-            if key == 'imputer':
-                steps.append(('imputer', CustomImputer(**value)))
-            elif key == 'scaler':
-                steps.append(('scaler', CustomScaler(**value)))
-            elif key == 'selection':
-                steps.append(('selection', CustomSelection(**value)))
-            elif key == 'vif':
-                steps.append(('vif', CustomVIF(**value)))
-            elif key == 'pca':
-                steps.append(('pca', CustomPCA(**value)))
-            elif key == 'log_transform':
-                steps.append(('log_transformer', CustomLogTransform(**value)))
+            if key == "imputer":
+                steps.append(("imputer", CustomImputer(**value)))
+            elif key == "scaler":
+                steps.append(("scaler", CustomScaler(**value)))
+            elif key == "selection":
+                steps.append(("selection", CustomSelection(**value)))
+            elif key == "vif":
+                steps.append(("vif", CustomVIF(**value)))
+            elif key == "pca":
+                steps.append(("pca", CustomPCA(**value)))
+            elif key == "log_transform":
+                steps.append(("log_transformer", CustomLogTransform(**value)))
             else:
-                raise ValueError("only imputation, scaling, feature selection and pca are implemented")
+                raise ValueError(
+                    "only imputation, scaling, feature selection and pca are implemented"
+                )
 
         transformer = Pipeline(steps=steps).fit(X, y)
         return transformer
@@ -247,4 +264,3 @@ class DropModalities(object):
                 dropped_indices = np.random.choice(nonzeros_indices, size=n_dropped, replace=False)
                 mask[dropped_indices] = 0
         return tuple(list_data) + (mask, target)
-
