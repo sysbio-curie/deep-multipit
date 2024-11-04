@@ -52,7 +52,7 @@ class Testing:
     For ensembling strategies the user is asked to specify a different DataLoader for each model of the ensemble,
     although each loader should load the same test data. This is to take into account potential differences in the
     pre-processing steps applied to the test data that may come with the different models and that are specified for
-    each dataset/ data loader (see base.base_dataset.MultimodalDataset).
+    each dataset/data loader (see base.base_dataset.MultimodalDataset).
     """
 
     def __init__(
@@ -225,6 +225,7 @@ def _predict(
         disable_tqdm=False,
 ):
     """
+    Prediction function.
 
     Parameters
     ----------
@@ -264,6 +265,7 @@ def _predict(
     modalitypreds: list of tensors of length n_samples_test
         Tensors of unimodal predictions/outputs for each test sample (size (1, n_modalities))
     """
+
     targets, outputs, attentions, modalitypreds = [], [], [], []
     model.eval()
     with torch.no_grad():

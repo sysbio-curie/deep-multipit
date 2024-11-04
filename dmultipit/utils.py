@@ -10,7 +10,7 @@ import yaml
 
 
 def set_device(data, device):
-    """Set Torch.device to tensor or list of tensors"""
+    """Set torch.device to tensor or list of tensors"""
     if isinstance(data, list):
         data = [d.to(device) for d in data]
     else:
@@ -19,7 +19,9 @@ def set_device(data, device):
 
 
 def collate_variable_size(batch):
-    """ """
+    """
+    Custom collate function to deal with batches with variable number of instances (e.g., Multiple Instance Learning)
+    """
     data, target = [], []
     for item in batch:
         if isinstance(item[0], list):
@@ -31,7 +33,7 @@ def collate_variable_size(batch):
 
 
 def ensure_dir(dirname):
-    """ """
+    """ Test whether a directory exists and create it if it is not the case."""
     dirname = Path(dirname)
     if not dirname.is_dir():
         dirname.mkdir(parents=True, exist_ok=False)
@@ -96,6 +98,8 @@ def prepare_device(n_gpu_use):
 
 
 class MetricTracker:
+    """ Custom metric tracker"""
+
     def __init__(self, keys, writer=None):
         self.writer = writer
         self._data = pd.DataFrame(index=keys, columns=["total", "counts", "average"])
@@ -125,6 +129,9 @@ class MetricTracker:
 
 
 def _clean_nested_dict(d):
+    """
+    Clean nested dictionary, converting numpy types into python types for saving dictionary in .json format"
+    """
     if isinstance(d, (np.int8, np.int16, np.int32, np.int64)):
         return int(d)
     if isinstance(d, (np.float16, np.float32, np.float64)):
@@ -138,6 +145,7 @@ def _clean_nested_dict(d):
 
 
 def masked_softmax(input_tensor, input_mask, dim):
+    """ Custom softmax function to deal with masked values """
     max_values = torch.max(
         torch.where(input_mask, input_tensor, torch.min(input_tensor)),
         dim=dim,

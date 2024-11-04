@@ -2,8 +2,6 @@ import argparse
 import inspect
 import os
 import sys
-import itertools
-from itertools import product
 
 import numpy as np
 import pandas as pd
@@ -16,15 +14,15 @@ currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentfram
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0, parentdir)
 
-import latefusatt.dataset.loader as module_data
-import latefusatt.model.loss as module_loss
-import latefusatt.model.metric as module_metric
-from latefusatt.model import model as module_arch
-import latefusatt.model.attentions as module_att
-import latefusatt.model.embeddings as module_emb
-from latefusatt.parse_config import ConfigParser
-from latefusatt.testing import Testing
-from latefusatt.utils import prepare_device
+import dmultipit.dataset.loader as module_data
+import dmultipit.model.loss as module_loss
+import dmultipit.model.metric as module_metric
+from dmultipit.model import model as module_arch
+import dmultipit.model.attentions as module_att
+import dmultipit.model.embeddings as module_emb
+from dmultipit.parse_config import ConfigParser
+from dmultipit.testing import Testing
+from dmultipit.utils import prepare_device
 
 
 def main(config_dict):
@@ -49,7 +47,7 @@ def main(config_dict):
     )
 
     *list_raw_data, labels = config_dict.init_ftn(
-        ["test_data", "loader"], module_data,  order=config_dict["architecture"]['order']
+        ["test_data", "loader"], module_data, order=config_dict["architecture"]['order']
     )()
     dataset = get_dataset(
         labels=labels,
@@ -128,7 +126,6 @@ def main(config_dict):
     # 7.2 save embeddings
     if config_dict["architecture"]["intermediate_fusion"]:
         if config_dict["testing"]["save_modality_embeddings"]:
-
             indexes = [(i, j) for i in dataset.sample_names for j in config_dict["architecture"]["order"]]
             df_modalityembs = pd.DataFrame(
                 torch.vstack(testing.modality_emb).numpy(),
@@ -138,7 +135,6 @@ def main(config_dict):
             del df_modalityembs
 
         if config_dict["testing"]["save_fused_embeddings"]:
-
             df_fusedembs = pd.DataFrame(
                 torch.vstack(testing.fused_emb).numpy(),
                 index=dataset.sample_names,
@@ -148,7 +144,6 @@ def main(config_dict):
 
     # 7.3 save modality predictions:
     if config_dict["testing"]["save_modality_predictions"]:
-
         df_modalitypreds = pd.DataFrame(torch.vstack(testing.modalitypreds).numpy(),
                                         index=dataset.sample_names,
                                         columns=config_dict["architecture"]["order"])

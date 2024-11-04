@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 import torch
 
@@ -7,65 +9,85 @@ from dmultipit.utils import inf_loop, MetricTracker, set_device
 
 class Trainer(BaseTrainer):
     """
-    Trainer class
+    Trainer class (with optionnal semi-supervised / pseudo-labelling strategy)
 
     Parameters
     ----------
-    model:
+    model: base_model.BaseModel object
+        Model to train.
 
-    criterion:
+    criterion: callable with output and target inputs
+        Training criterion (i.e., loss)
 
-    metric_ftns:
+    metric_ftns: callable with output and target inputs
+        Training and validation metrics to monitor training
 
-    optimizer:
+    optimizer: torch.optim.Optimizer object
+        Optimization algorithms (e.g., torch.optim.Adam, torch.optim.SGD)
 
-    config:
+    config: dict
+        Configuration dictionnary
 
-    device:
+    device: str
+        Torch.device on which to allocate tensors
 
-    data_loader:
+    data_loader: DataLoader
+        Training data
 
-    valid_data_loader:
+    valid_data_loader: DataLoader or None
+        Validation data. If None, no validation is performed. The default is None.
 
-    unlabelled_data_loader:
+    unlabelled_data_loader: Dataloader or None.
+        Unlabelled data for semi-supervised strategy (i.e., pseudo-labelling). If None, no unlabelled data is added to
+        the training. The default is None.
 
-    weight_unlabelled:
+    weight_unlabelled: Callable or None
+        Function to specify the weight of the unlabelled step depending on the training epoch (e.g., 0 until epoch 50
+        and 1 after). See dmultipit.model.loss.StepScheduler. The default is None.
 
-    criterion_unlabelled:
+    criterion_unlabelled: Callable or None
+        Criterion for pseudo-labelling strategy. See dmultipit.model.loss.UnlabelledBCELoss. The default is None.
 
-    lr_scheduler:
+    lr_scheduler: torch.optim.lr_scheduler object or None
+        Learning rate scheduler. If None the learning rate is kept constant throughout training. The default is None.
 
-    len_epoch:
+    len_epoch: Int or None.
+        Number of batches within an epoch. If None, len_epoch will be set to the length of the provided data_loader.
+        The default is None.
 
-    log_dir:
+    log_dir: string or None.
+        Path to the directory to save Tensorboard logs in. The default is None.
 
-    ensembling_index:
+    ensembling_index: int or None
+        Index to associate the trained/saved model to an ensemble of other trained models for further ensembling
+        strategies. The default is None.
 
-    save_architecture:
+    save_architecture: bool
+        If true, save model architecture as .yaml file. The default is False.
 
-    disable_checkpoint:
-
+    disable_checkpoint: bool
+        If true, no checkpoint is saved. The default is False.
     """
 
     def __init__(
-        self,
-        model,
-        criterion,
-        metric_ftns,
-        optimizer,
-        config,
-        device,
-        data_loader,
-        valid_data_loader=None,
-        unlabelled_data_loader=None,
-        weight_unlabelled=None,
-        criterion_unlabelled=None,
-        lr_scheduler=None,
-        len_epoch=None,
-        log_dir=None,
-        ensembling_index=None,
-        save_architecture=False,
-        disable_checkpoint=False,
+            self,
+            model,
+            criterion,
+            metric_ftns,
+            optimizer,
+            config,
+            device,
+            data_loader,
+            valid_data_loader=None,
+            unlabelled_data_loader=None,
+            weight_unlabelled=None,
+            criterion_unlabelled=None,
+            lr_scheduler=None,
+            len_epoch=None,
+            log_dir=None,
+            ensembling_index=None,
+            save_architecture=False,
+            disable_checkpoint=False,
     ):
 
         if log_dir is None:
@@ -98,11 +120,24 @@ class Trainer(BaseTrainer):
         self.lr_scheduler = lr_scheduler
         self.log_step = int(np.sqrt(data_loader.batch_size))
 
+        # initiate pseudo-labelling
         self.unlabelled_data_loader = unlabelled_data_loader
         self.pseudo_labelling = self.unlabelled_data_loader is not None
         self.criterion_unlabelled = criterion_unlabelled
         self.weigth_unlabelled = weight_unlabelled
+        if (self.pseudo_labelling
+                and ((self.criterion_unlabelled is None) or (self.weigth_unlabelled is None))):
+            raise ValueError("When unlabelled data are passed for semi-supervised learning criterion_unlabelled and"
+                             "weight_unlabelled must be specified (i.e., not set to None).")
+        elif ((not self.pseudo_labelling)
+              and ((self.criterion_unlabelled is not None) or (self.weigth_unlabelled is not None))):
+            warnings.warn("criterion_unlabelled and/or weight_unlabelled are specified but no unlabelled_data_loader"
+                          "is passed. No semi-supervised strategy will be performed and criterion_unlabelled and"
+                          "weight_unlabelled will be reset to None.")
+            self.criterion_unlabelled = None
+            self.weigth_unlabelled = None
 
+        # initiate training metrics tracking
         metric_keys = ["loss"] + [m.__name__ for m in self.metric_ftns]
         self.valid_metrics = MetricTracker(metric_keys, writer=self.writer)
         if self.pseudo_labelling:
@@ -122,6 +157,7 @@ class Trainer(BaseTrainer):
         -------
         log: A log that contains average loss and metric in this epoch.
         """
+
         self.model.train()
         self.train_metrics.reset()
 
@@ -136,6 +172,7 @@ class Trainer(BaseTrainer):
             output = self.model(list_modas, mask)
             loss = self.criterion(output, target)
 
+            # Add optional L2 penalties (for model weights and/or attention weights)
             if self.config["training"]["l2_penalty"] is not None:
                 l2_penalty = torch.stack(
                     [p.norm(p=2) for n, p in self.model.named_parameters() if "weight" in n]
@@ -163,6 +200,7 @@ class Trainer(BaseTrainer):
             if batch_idx == self.len_epoch:
                 break
 
+        # Semi-supervised / pseudo-labelling step
         if self.pseudo_labelling:
             self._train_unlabelled_epoch(epoch)
 
@@ -183,8 +221,10 @@ class Trainer(BaseTrainer):
             val_log = self._valid_epoch(epoch)
             log.update(**{"val_" + k: v for k, v in val_log.items()})
 
+        # adjust learning rate
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
+
         return log
 
     def _train_unlabelled_epoch(self, epoch):
@@ -227,6 +267,7 @@ class Trainer(BaseTrainer):
         -------
         log: A log that contains information about validation
         """
+
         self.model.eval()
         self.valid_metrics.reset()
         with torch.no_grad():
@@ -264,6 +305,7 @@ class Trainer(BaseTrainer):
             total = self.len_epoch
         return base.format(current, total, 100.0 * current / total)
 
+# Training class with no optional validation or optional pseudo-labelling
 
 # class FastTrainer(BaseTrainer):
 #     def __init__(
@@ -284,8 +326,8 @@ class Trainer(BaseTrainer):
 #         if log_dir is None:
 #             log_dir = config.log_dir
 #
-#         super().__init__(model, criterion, metric_ftns, optimizer, config, log_dir, ensembling_index, save_architecture,
-#                          disable_checkpoint)
+#         super().__init__(model, criterion, metric_ftns, optimizer, config, log_dir, ensembling_index,
+#                           save_architecture, disable_checkpoint)
 #         self.config = config
 #         self.device = device
 #         self.data_loader = data_loader
