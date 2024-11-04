@@ -1,6 +1,7 @@
 import inspect
 import os
 import sys
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -32,36 +33,66 @@ def get_dataset(
         rad_transform=None,
 ):
     """
+    Create multimodal dataset from raw data
 
     Parameters
     ----------
-    labels:
+    labels: 1D numpy array or pandas serie (n_samples,)
+        Label for each sample. It should be ordered in the same way as the raw data sets provied in *list_raw_data*.
 
-    list_raw_data:
+    list_raw_data: list of numpy arrays or pandas dataframes of shape (n_samples, n_features_1),
+        (n_samples, n_features_2)... The rows of the different datasets should be ordered in the same way (i.e., same
+        order of samples each time).
 
-    dataset_name:
+    dataset_name: str
+        Name of the Dataset object to consider. It should refer to an object from dmultipit.dataset.dataset and
+        inheritating from dmultipit.base.base_dataset.MultiModalDataset.
 
-    list_unimodal_processings:
+    list_unimodal_processings: list of dictionaries, sklearn.base.TransformerMixin and None
+        List of processing operations to apply to each modality separately.
+        * If None no operation is performed for the corresponding modality
+        * If dictionary it should define a processing strategy to be fitted on the data
+         (e.g., {'scaling': {'with_std': True}, 'PCA': {'n_components': 0.9}} could define a standard scaling
+         operations followed by a PCA (to be defined in the fit_process method !))
+        * If sklearn.base.TransformerMixin it should correspond to a fitted transformer !
 
-    multimodal_processing:
+    multimodal_processing: dictionary, sklearn.base.TransformerMixin and None
+        Processing operations to apply to the multimodal data set.
+        * If None no operation is performed
+        * If dictionary it should define a processing strategy to be fitted on the data (to be defined in the
+         fit_multimodal_process method !)
+        * If sklearn.base.TransformerMixin it should correspond to a fitted transformer !
 
-    indexes:
+    indexes: list of string or None
+        List of sample indexes to consider in the data set. If None the function does not return a Dataset (only None
+        value).
 
-    drop_modas:
+    drop_modas: bool
+        If True, random droping of modalities will be applied to each sample (i.e., data augmentation).
+        See dmultipit.dataset.dataset.DropModalities. The default is False
 
-    keep_unlabelled:
+    keep_unlabelled: bool
+        If True, keep unlabelled samples in the dataset. Discard them otherwise.
+        See dmultipit.base.base_dataset.MultiModalDataset. The default is False.
 
-    radiomics:
+    radiomics: int or None
+        Position index of radiomics data within the list of raw data sets. If None, it is assumed no radiomic data
+        were included in the list of raw data. This argument is only taken into accound when dataset_name is
+        'MSKCCDataSet'. The default is None.
 
-    rad_transform:
+    rad_transform: dict or _transformers.MSKCCRadiomicsTransform object, or None
+        Transformer for radiomic data. This argument is only taken into accound when dataset_name is 'MSKCCDataSet'.
+        The default is None.
 
     Returns
     -------
-    data_set:
+    data_set: MultiModalDataset object or None
+        A None value is returned when no indexes were passed as input.
 
-    bool_mask:
-
+    bool_mask: boolean array of size (n_samples,) or None
+        A None value is returned when no indexes were passed as input. Otherwise, indicate samples with only NaN values.
     """
+
     if indexes is not None:
 
         data_sets = []
@@ -86,6 +117,7 @@ def get_dataset(
         else:
             labels = labels.copy().iloc[indexes].values[~bool_mask]
 
+        # Create
         if dataset_name == "MSKCCDataset":
             dataset = getattr(module_data, dataset_name)(
                 list_raw_data=data_sets,
@@ -128,40 +160,30 @@ def train_test_split(
         rad_transform=None,
 ):
     """
+    Create training and test data for a given train-test split. Unimodal and multimodal processings are fitted to the
+    training data and subsequently applied to the test data.
 
     Parameters
     ----------
-    train_index:
+    train_index: list of int.
+        Indexes for training data.
 
-    test_index:
-
-    labels:
-
-    list_raw_data:
-
-    dataset_name:
-
-    list_unimodal_processings:
-
-    multimodal_processing:
-
-    drop_modas:
-
-    keep_unlabelled:
-
-    radiomics:
-
-    rad_transform:
+    test_index: list of int.
+        Indexes for test data.
 
     Returns
     -------
-    dataset_train:
+    dataset_train: MultiModalDataset object
+        Training dataset with labelled data.
 
-    dataset_train_unlabelled:
+    dataset_train_unlabelled: MultiModalDataset object or None
+        Training dataset with unlabelled data. None if self.keep_unlabelled is False.
 
-    dataset_test:
+    dataset_test: MultiModalDataset object
+        Test dataset.
 
-    bool_mask_test:
+    bool_mask_test: boolean array of shape (n_test_samples,)
+        Indicate samples with only NaN values.
 
     """
     dataset_train, _ = get_dataset(
@@ -186,16 +208,13 @@ def train_test_split(
         test_index,
         keep_unlabelled=False,
         radiomics=radiomics,
-        rad_transform=dataset_train.rad_transform
-        if rad_transform is not None
-        else None,
+        rad_transform=dataset_train.rad_transform if rad_transform is not None else None,
     )
 
     dataset_train_unlabelled = None
 
     if keep_unlabelled:
-        assert dataset_train.unlabelled_data is not None, ""
-        if len(dataset_train.unlabelled_data) > 0:
+        if (dataset_train.unlabelled_data is not None) and (len(dataset_train.unlabelled_data) > 0):
             dataset_train_unlabelled = CustomSubset(
                 dataset_train, dataset_train.unlabelled_data
             )
@@ -205,6 +224,8 @@ def train_test_split(
                     set(range(len(dataset_train))) - set(dataset_train.unlabelled_data)
                 ),
             )
+        else:
+            warnings.warn("Training data contains no unlabelled data. dataset_train_unlabelled is set to None")
 
     return dataset_train, dataset_train_unlabelled, dataset_test, bool_mask_test
 
@@ -224,46 +245,39 @@ def train_val_test_split(
         rad_transform=None,
 ):
     """
+    Create training, validation and test data for a given train-val-test split. Unimodal and multimodal processings are
+    fitted to the training data and subsequently applied to the validation and test data.
 
     Parameters
     ----------
-    train_index:
+    train_index: list of int
+        Indexes for training data.
 
-    test_index:
+    test_index: list of int
+        Indexes for test data.
 
-    val_index:
-
-    labels:
-
-    list_raw_data:
-
-    dataset_name:
-
-    list_unimodal_processings:
-
-    multimodal_processing:
-
-    drop_modas:
-
-    keep_unlabelled:
-
-    radiomics:
-
-    rad_transform:
+    val_index: list of int
+        Indexes for validation data.
 
     Returns
     -------
-    dataset_train:
+    dataset_train: MultiModalDataset object
+        Training dataset with labelled data.
 
-    dataset_train_unlabelled:
+    dataset_train_unlabelled: MultiModalDataset object or None
+        Training dataset with unlabelled data.
 
-    dataset_val:
+    dataset_val: MultiModalDataset object
+        Validation dataset.
 
-    dataset_test:
+    dataset_test: MultiModalDataset object
+        Test dataset.
 
-    bool_mask_test:
+    bool_mask_test: boolean array of shape (n_test_samples,)
+        Indicate samples with only NaN values.
 
-    bool_mask_train:
+    bool_mask_train: boolean array of shape (n_val_samples,)
+        Indicate samples with only NaN values.
 
     """
     dataset_train, bool_mask_train = get_dataset(
@@ -308,31 +322,34 @@ def train_val_test_split(
     dataset_train_unlabelled = None
 
     if keep_unlabelled:
-        assert dataset_train.unlabelled_data is not None, ""
-        if len(dataset_train.unlabelled_data) > 0:
+        if (dataset_train.unlabelled_data is not None) and (len(dataset_train.unlabelled_data) > 0):
             dataset_train_unlabelled = CustomSubset(dataset_train, dataset_train.unlabelled_data)
             dataset_train = CustomSubset(
                 dataset_train,
                 list(set(range(len(dataset_train))) - set(dataset_train.unlabelled_data)),
             )
+        else:
+            warnings.warn("Training data contains no unlabelled data. dataset_train_unlabelled is set to None")
 
     return dataset_train, dataset_train_unlabelled, dataset_val, dataset_test, bool_mask_test, bool_mask_train
 
 
 def build_model(config_dict, device, logger=None):
     """
+    Built multimodal predictive model for config dictionary
 
     Parameters
     ----------
-    config_dict:
+    config_dict: dict
 
-    device:
+    device: str
+        Torch.device on which to allocate model weights
 
-    logger:
+    logger: logging device
 
     Returns
     -------
-    model:
+    model: dmultipit.model.model.InterAttentionFusion or dmultipit.model.model.LateAttentionFusion
 
     """
     embeddings = [
@@ -356,11 +373,9 @@ def build_model(config_dict, device, logger=None):
                 ["architecture", "attention"],
                 module_att,
                 dim_input=[
-                    config_dict["architecture"]["modality_embeddings"][m]["args"][
-                        "dim_input"
-                    ]
+                    config_dict["architecture"]["modality_embeddings"][m]["args"]["dim_input"]
                     for m in config_dict["architecture"]["order"]
-                ],
+                          ],
             ),
         )
     if logger is not None:
@@ -371,7 +386,7 @@ def build_model(config_dict, device, logger=None):
 
 
 class ProgressParallel(Parallel):
-    """ """
+    """ Custom tqdm progress bar for parallel computing """
 
     def __init__(self, use_tqdm=True, total=None, *args, **kwargs):
         self._use_tqdm = use_tqdm
@@ -391,16 +406,19 @@ class ProgressParallel(Parallel):
 
 def fing_logrank_threshold(risk_score, labels_surv):
     """
+    Find cutoff value that maximize logrank test (searching between 30th and 71st percentiles of provided risk scores)
 
     Parameters
     ----------
-    risk_score:
+    risk_score: 1D array of shape (n_samples,)
+        Predicted survival risk score.
 
-    labels_surv:
+    labels_surv: sksurv.util.Surv array of shape (n_samples,)
+        Structured array containing event indicators (i.e., censored or not) and observed times.
 
     Returns
     -------
-
+        float, optimal cutoff value
     """
     cutoffs, pvals = [], []
     for p in np.arange(30, 71):
