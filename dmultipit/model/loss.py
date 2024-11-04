@@ -38,33 +38,33 @@ class NllLoss(object):
 
 
 # Tools for semi-supervised learning (regularization with unlabelled data)
-# class StepScheduler(object):
-#     """
-#     Custom step scheduler (wait before considering unlabelled data)
-#     """
-#
-#     def __init__(self, wait):
-#         self.wait = wait
-#
-#     def __call__(self, epoch):
-#         if epoch >= self.wait:
-#             return 1
-#         return 0
+class StepScheduler(object):
+    """
+    Custom step scheduler (wait before considering unlabelled data)
+    """
+
+    def __init__(self, wait):
+        self.wait = wait
+
+    def __call__(self, epoch):
+        if epoch >= self.wait:
+            return 1
+        return 0
 
 
-# class UnlabelledBCELoss(object):
-#     """
-#     Binary cros-entropy loss with pseudo binary labels generated from the predictions of the model for unlabelled
-#     data, considering only "confident" ones (i.e., predictions sufficiently far from 0.5 as determined by a predefined
-#     threshod).
-#     """
+class UnlabelledBCELoss(object):
+    """
+    Binary cros-entropy loss with pseudo binary labels generated from the predictions of the model for unlabelled
+    data, considering only "confident" ones (i.e., predictions sufficiently far from 0.5 as determined by a predefined
+    threshod).
+    """
 
-#     def __init__(self, threshold):
-#         self.threshold = threshold
-#
-#     def __call__(self, output, output_labels):
-#         criterion = torch.nn.BCELoss()
-#         mask = torch.abs(torch.tensor(0.5) - output_labels).ge(self.threshold)
-#         output = torch.masked_select(output, mask)
-#         target = torch.torch.masked_select(output_labels, mask).ge(0.5)
-#         return criterion(output.squeeze(), target.to(dtype=torch.float32).squeeze())
+    def __init__(self, threshold):
+        self.threshold = threshold
+
+    def __call__(self, output, output_labels):
+        criterion = torch.nn.BCELoss()
+        mask = torch.abs(torch.tensor(0.5) - output_labels).ge(self.threshold)
+        output = torch.masked_select(output, mask)
+        target = torch.torch.masked_select(output_labels, mask).ge(0.5)
+        return criterion(output.squeeze(), target.to(dtype=torch.float32).squeeze())
