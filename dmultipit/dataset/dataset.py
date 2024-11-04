@@ -1,3 +1,5 @@
+import warnings
+
 import torch
 from sklearn.exceptions import NotFittedError
 from sklearn.pipeline import Pipeline
@@ -25,7 +27,7 @@ class TIPITDataset(MultiModalDataset):
         y: 1D array of shape (n_samples,)
             Label for each sample
 
-        params: dictionary
+        params: dict
             Keys refer to processing operations (as specified in the following) and values correspond to dictionaries of
             parameters for each specific operations (e.g., key = "pca", value = {"n_components": 0.9}).
 
@@ -74,7 +76,7 @@ class TIPITDataset(MultiModalDataset):
         y: 1D array of shape (n_samples,)
             Label for each sample.
 
-        params: dictionary
+        params: dict
             Keys refer to processing operations (as specified in the following) and values correspond to dictionaries of
             parameters for each specific operations (e.g., key = "selection", value = {"n_components": 0.9}).
 
@@ -112,13 +114,16 @@ class MSKCCDataset(MultiModalDataset):
 
     list_unimodal_processings: see base.base_dataset.MultiModalDataset
 
-    transform: see base.base_dataset.MultiModalDataset
+    transform: callable or None
+            Transformation to apply to each sample in the batch (e.g., data augmentation). If None, no transformation is
+            performed. The default is None.
 
-    radiomics: int
-        Position index to include transformed radiomic data in the list of data sets (i.e., different modalities)
+    radiomics: int or None
+        Position index of radiomics data within the list of raw data sets. If None, it is assumed no radiomic data
+        were included in the list of raw data. The default is None.
 
-    rad_transform: dictionary or _transformers.MSKCCRadiomicsTransform object
-        Transformer for radiomic data.
+    rad_transform: dict or _transformers.MSKCCRadiomicsTransform object, or None
+        Transformer for radiomic data. The default is None.
 
     References
     ----------
@@ -131,17 +136,18 @@ class MSKCCDataset(MultiModalDataset):
     """
 
     def __init__(
-        self,
-        list_raw_data,
-        labels,
-        list_unimodal_processings,
-        transform=None,
-        radiomics=None,
-        rad_transform=None,
+            self,
+            list_raw_data,
+            labels,
+            list_unimodal_processings,
+            transform=None,
+            radiomics=None,
+            rad_transform=None,
     ):
         # Transform and add radiomics data to the list of raw modalities
         if radiomics is not None:
-            assert isinstance(radiomics, int), ""
+            assert isinstance(radiomics, int), ("radiomics shoud correspond to the position index of raw radiomic"
+                                                " data within the provided list of raw datasets.")
             assert rad_transform is not None, ("if radiomics is not None a transformer for radiomics data should be"
                                                " provided")
             n_modalities = len(list_raw_data)
@@ -154,6 +160,9 @@ class MSKCCDataset(MultiModalDataset):
                 list_raw_data = list_raw_data[:-1] + list(radiomics_data)
             else:
                 list_raw_data = list_raw_data[:radiomics] + list(radiomics_data) + list_raw_data[radiomics + 1:]
+        else:
+            warnings.warn("radiomics was set to None. We will therefore assume that no radiomic data was included in"
+                          "the list of raw data (no specific radiomic transformation will be applied).")
 
         # Initialize MultiModalDataset with the updated list of raw data (i.e., transformed radiomics included)
         super(MSKCCDataset, self).__init__(
@@ -178,7 +187,7 @@ class MSKCCDataset(MultiModalDataset):
         labels: pandas dataframe
             Label for each sample.
 
-        rad_transform: dictionary or _transformers.MSKCCRadiomicsTransform object
+        rad_transform: dict or _transformers.MSKCCRadiomicsTransform object
             * If dictionary, corresponds to the set of parameters for _transformers.MSKCCRadiomicsTransform object which
             will be fitted to the provided radiomics_data
             * If _transformers.MSKCCRadiomicsTransform object, it should be already fitted.

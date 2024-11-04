@@ -22,7 +22,11 @@ class MultiModalDataset(Dataset):
     labels: 1D numpy array or pandas serie (n_samples,)
         Label for each sample. It should be ordered in the same way as the raw data sets provied in *list_raw_data*.
 
-    list_unimodal_processings: list of dictionaries, sklearn.base.TransformerMixin and None
+    keep_unlabelled: bool
+        It True, keep unlabelled data in the Dataset (saving the indexes associated to unlabelled samples in
+        self.unlabelled_data). Discard them otherwise (and self.unlabelled_data is set to None).
+
+    list_unimodal_processings: list of dict, sklearn.base.TransformerMixin and None
         List of processing operations to apply to each modality separately.
         * If None no operation is performed for the corresponding modality
         * If dictionary it should define a processing strategy to be fitted on the data
@@ -30,7 +34,7 @@ class MultiModalDataset(Dataset):
          operations followed by a PCA (to be defined in the fit_process method !))
         * If sklearn.base.TransformerMixin it should correspond to a fitted transformer !
 
-    multimodal_processing: dictionary, sklearn.base.TransformerMixin and None
+    multimodal_processing: dict, sklearn.base.TransformerMixin and None
         Processing operations to apply to the multimodal data set.
         * If None no operation is performed
         * If dictionary it should define a processing strategy to be fitted on the data (to be defined in the
@@ -46,12 +50,14 @@ class MultiModalDataset(Dataset):
             self,
             list_raw_data,
             labels,
+            keep_unlabelled,
             list_unimodal_processings,
             multimodal_processing,
             transform=None,
     ):
         self.list_raw_data = tuple()
         self.sample_names = None
+        self.keep_unlabelled = keep_unlabelled
 
         for data in list_raw_data:
             assert (len(self.list_raw_data) == 0) or data.shape[0] == self.list_raw_data[0].shape[0], ("all data sets "
@@ -79,12 +85,16 @@ class MultiModalDataset(Dataset):
 
         # Remove unlabelled data points
         nan_labels = np.isnan(self.labels)
-        if np.sum(nan_labels) > 0:
-            self.labels = self.labels[~nan_labels]
-            filtered_data = tuple()
-            for data in self.list_raw_data:
-                filtered_data = filtered_data + (data[~nan_labels, :],)
-            self.list_raw_data = filtered_data
+        if not self.keep_unlabelled:
+            if np.sum(nan_labels) > 0:
+                self.labels = self.labels[~nan_labels]
+                filtered_data = tuple()
+                for data in self.list_raw_data:
+                    filtered_data = filtered_data + (data[~nan_labels, :],)
+                self.list_raw_data = filtered_data
+            self.unlabelled_data = None
+        else:
+            self.unlabelled_data = np.arange(len(self.labels))[nan_labels]
 
         # compute weights for batch sampling (only for binary classification and labelled data)
         if type_of_target(self.labels[~np.isnan(self.labels)]) == "binary":
@@ -154,7 +164,7 @@ class MultiModalDataset(Dataset):
 
         Parameters
         ----------
-        list_unimodal_processings: list of dictionaries, sklearn.base.TransformerMixin and None
+        list_unimodal_processings: list of dict, sklearn.base.TransformerMixin and None
             List of processing operations to apply to each modality separately.
             * If None no operation is performed for the corresponding modality
             * If dictionary it should define a processing strategy to be fitted on the data
@@ -208,7 +218,7 @@ class MultiModalDataset(Dataset):
 
         Parameters
         ----------
-        multimodal_processing: dictionary, sklearn.base.TransformerMixin and None
+        multimodal_processing: dict, sklearn.base.TransformerMixin and None
             Processing operations to apply to the multimodal data set.
             * If None no operation is performed
             * If dictionary it should define a processing strategy to be fitted on the data (to be defined in the
