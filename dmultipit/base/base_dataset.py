@@ -286,6 +286,37 @@ class MultiModalDataset(Dataset):
         return item
 
 
+class CustomSubset(Dataset):
+    """
+    Define a subset of a multimodal data set (with the same unimodal and multimodal processings).
+
+    Parameters
+    ----------
+    dataset: MultiModalDataset
+        Original multimodal data set to extract a subset from.
+
+    indices: list of int
+        Indices defining the subset of interest
+    """
+
+    def __init__(self, dataset, indices):
+        self.dataset = dataset
+        self.indices = indices
+        self.list_unimodal_processings = self.dataset.list_unimodal_processings
+        self.multimodal_processing = self.dataset.mutlimodal_processing
+        self.sample_weights = None
+        if self.dataset.sample_weights is not None:
+            self.sample_weights = [self.dataset.sample_weights[ind] for ind in self.indices]
+
+    def __getitem__(self, idx):
+        if isinstance(idx, list):
+            return self.dataset[[int(self.indices[i]) for i in idx]]
+        return self.dataset[int(self.indices[idx])]
+
+    def __len__(self):
+        return len(self.indices)
+
+
 def _check_is_fitted(test_object):
     """Check whether the object is fitted (or whether each element is fitted if the object is a pipeline)."""
     classes = inspect.getmro(test_object.__class__)
