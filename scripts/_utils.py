@@ -14,23 +14,23 @@ parentdir = os.path.dirname(currentdir)
 sys.path.insert(0, parentdir)
 
 import dmultipit.dataset.dataset as module_data
-from dmultipit.base.base_dataset import CustomSubset
+from dmultipit.base.base_dataset import CustomSubset, check_transform
 from dmultipit.model import model as module_arch
 import dmultipit.model.attentions as module_att
 import dmultipit.model.embeddings as module_emb
 
 
 def get_dataset(
-        labels,
-        list_raw_data,
-        dataset_name,
-        list_unimodal_processings,
-        multimodal_processing,
-        indexes,
-        drop_modas=False,
-        keep_unlabelled=False,
-        radiomics=None,
-        rad_transform=None,
+    labels,
+    list_raw_data,
+    dataset_name,
+    list_unimodal_processings,
+    multimodal_processing,
+    indexes,
+    drop_modas=False,
+    keep_unlabelled=False,
+    radiomics=None,
+    rad_transform=None,
 ):
     """
     Create multimodal dataset from raw data
@@ -150,17 +150,17 @@ def get_dataset(
 
 
 def train_test_split(
-        train_index,
-        test_index,
-        labels,
-        list_raw_data,
-        dataset_name,
-        list_unimodal_processings,
-        multimodal_processing,
-        drop_modas,
-        keep_unlabelled,
-        radiomics=None,
-        rad_transform=None,
+    train_index,
+    test_index,
+    labels,
+    list_raw_data,
+    dataset_name,
+    list_unimodal_processings,
+    multimodal_processing,
+    drop_modas,
+    keep_unlabelled,
+    radiomics=None,
+    rad_transform=None,
 ):
     """
     Create training and test data for a given train-test split. Unimodal and multimodal processings are fitted to the
@@ -207,7 +207,9 @@ def train_test_split(
     dataset_train_unlabelled = None
 
     if keep_unlabelled:
-        if (dataset_train.unlabelled_data is not None) and (len(dataset_train.unlabelled_data) > 0):
+        if (dataset_train.unlabelled_data is not None) and (
+            len(dataset_train.unlabelled_data) > 0
+        ):
             dataset_train_unlabelled = CustomSubset(
                 dataset_train, dataset_train.unlabelled_data
             )
@@ -218,7 +220,9 @@ def train_test_split(
                 ),
             )
         else:
-            warnings.warn("Training data contains no unlabelled data. dataset_train_unlabelled is set to None")
+            warnings.warn(
+                "Training data contains no unlabelled data. dataset_train_unlabelled is set to None"
+            )
 
     # create test dataset with fitted unimodal and multimodal processings from training data
     dataset_test, bool_mask_test = get_dataset(
@@ -230,25 +234,27 @@ def train_test_split(
         test_index,
         keep_unlabelled=False,
         radiomics=radiomics,
-        rad_transform=dataset_train.rad_transform if rad_transform is not None else None,
+        rad_transform=dataset_train.rad_transform
+        if rad_transform is not None
+        else None,
     )
 
     return dataset_train, dataset_train_unlabelled, dataset_test, bool_mask_test
 
 
 def train_val_test_split(
-        train_index,
-        test_index,
-        val_index,
-        labels,
-        list_raw_data,
-        dataset_name,
-        list_unimodal_processings,
-        multimodal_processing,
-        drop_modas,
-        keep_unlabelled,
-        radiomics=None,
-        rad_transform=None,
+    train_index,
+    test_index,
+    val_index,
+    labels,
+    list_raw_data,
+    dataset_name,
+    list_unimodal_processings,
+    multimodal_processing,
+    drop_modas,
+    keep_unlabelled,
+    radiomics=None,
+    rad_transform=None,
 ):
     """
     Create training, validation and test data for a given train-val-test split. Unimodal and multimodal processings are
@@ -304,14 +310,22 @@ def train_val_test_split(
     dataset_train_unlabelled = None
 
     if keep_unlabelled:
-        if (dataset_train.unlabelled_data is not None) and (len(dataset_train.unlabelled_data) > 0):
-            dataset_train_unlabelled = CustomSubset(dataset_train, dataset_train.unlabelled_data)
+        if (dataset_train.unlabelled_data is not None) and (
+            len(dataset_train.unlabelled_data) > 0
+        ):
+            dataset_train_unlabelled = CustomSubset(
+                dataset_train, dataset_train.unlabelled_data
+            )
             dataset_train = CustomSubset(
                 dataset_train,
-                list(set(range(len(dataset_train))) - set(dataset_train.unlabelled_data)),
+                list(
+                    set(range(len(dataset_train))) - set(dataset_train.unlabelled_data)
+                ),
             )
         else:
-            warnings.warn("Training data contains no unlabelled data. dataset_train_unlabelled is set to None")
+            warnings.warn(
+                "Training data contains no unlabelled data. dataset_train_unlabelled is set to None"
+            )
 
     # create validation dataset with fitted unimodal and multimodal processings from training data
     dataset_val, _ = get_dataset(
@@ -343,10 +357,17 @@ def train_val_test_split(
         else None,
     )
 
-    return dataset_train, dataset_train_unlabelled, dataset_val, dataset_test, bool_mask_test, bool_mask_train
+    return (
+        dataset_train,
+        dataset_train_unlabelled,
+        dataset_val,
+        dataset_test,
+        bool_mask_test,
+        bool_mask_train,
+    )
 
 
-def build_model(config_dict, device, logger=None):
+def build_model(config_dict, device, training_data=None, logger=None):
     """
     Build multimodal predictive model from configuration dictionary
 
@@ -357,13 +378,20 @@ def build_model(config_dict, device, logger=None):
     device: str
         Torch.device on which to allocate model weights
 
-    logger: logging device
+    training_data: dmultipit.base.base_dataset.MultiModalDataset object or None
+        Training data set. If None, the architecture of the model is not updated. The default is None.
+
+    logger: logging device or None
+        The default is None.
 
     Returns
     -------
     model: dmultipit.model.model.InterAttentionFusion or dmultipit.model.model.LateAttentionFusion
 
     """
+    # update architecture (after training pre-processings)
+    if training_data is not None:
+        config_dict = _update_architecture(config_dict, training_data)
 
     # build embedding modules for each modality
     embeddings = [
@@ -391,7 +419,9 @@ def build_model(config_dict, device, logger=None):
                 ["architecture", "attention"],
                 module_att,
                 dim_input=[
-                    config_dict["architecture"]["modality_embeddings"][m]["args"]["dim_input"]
+                    config_dict["architecture"]["modality_embeddings"][m]["args"][
+                        "dim_input"
+                    ]
                     for m in config_dict["architecture"]["order"]
                 ],
             ),
@@ -405,8 +435,54 @@ def build_model(config_dict, device, logger=None):
     return model
 
 
+def _update_architecture(config_dict, training_data):
+    """
+    Update configuration dictionary (i.e., model architecture) to take into account pre-processing operations (e.g.,
+    changes in the input dimensions)
+
+    Parameters
+    ----------
+    config_dict: dict
+        Configuration dictionary
+
+    training_data: dmultipit.base.base_dataset.MultiModalDataset object
+        Training data set
+
+    Returns
+    -------
+    config_dict: dict
+        Updated configuration dictionary
+    """
+
+    # If multimodal pre-processing is performed (last processing operations) use the get_multimodal_dimension method
+    # of the dmultipit.base.base_transformer.MultimodalTransformer estimator to extract the updated dimension of each
+    # modality
+    if (len(config_dict["architecture"]["order"]) > 1) and (training_data.multimodal_processing is not None):
+        list_new_dim = training_data.multimodal_processing.get_multimodal_dimension()
+        for new, moda in zip(list_new_dim, config_dict["architecture"]["order"]):
+            config_dict["architecture"]["modality_embeddings"][moda]["args"]["dim_input"] = new
+
+    # Otherwise, use the get_dimension method of the last dmultimot.base.base_transformer.MultimodalTransformer applied
+    # to each modality to obtain the updated input dimensions.
+    else:
+        for process, moda in zip(training_data.list_unimodal_processings, config_dict["architecture"]["order"]):
+            if check_transform(process):
+                classes = inspect.getmro(process.__class__)
+                if classes[0].__name__ == "Pipeline":
+                    process = process[-1]
+                new = process.get_dimension()
+                config_dict["architecture"]["modality_embeddings"][moda]["args"]["dim_input"] = new
+
+            # special case for MKSCC dataset and radiomic transform (when no unimodal processing is applied)
+            elif config_dict["MSKCC"] and (moda in {"radiomics_PL", "radiomics_PC", "radiomics_LN"}):
+                new = len(training_data.rad_transform.selected_features_[moda.split("_")[1]])
+                config_dict["architecture"]["modality_embeddings"][moda]["args"]["dim_input"] = new
+
+    return config_dict
+
+
 class ProgressParallel(Parallel):
-    """ Custom tqdm progress bar for parallel computing """
+    """Custom tqdm progress bar for parallel computing"""
 
     def __init__(self, use_tqdm=True, total=None, *args, **kwargs):
         self._use_tqdm = use_tqdm
