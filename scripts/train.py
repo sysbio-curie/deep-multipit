@@ -63,6 +63,7 @@ def main(config_dict):
                     np.zeros(len(labels)), np.where(~np.isnan(labels), labels, 2)
                 )
             )
+            config_dict["training_data"]["val_index"] = val_index  # save validation index for checkpoint
     else:
         if len(val_index) > 0:
             train_index = np.delete(train_index, val_index)
