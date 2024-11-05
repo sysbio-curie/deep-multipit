@@ -6,7 +6,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.utils.validation import check_is_fitted
 
 from dmultipit.base import MultiModalDataset
-from ._transformers import *
+from .transformers import *
 
 
 class TIPITDataset(MultiModalDataset):
