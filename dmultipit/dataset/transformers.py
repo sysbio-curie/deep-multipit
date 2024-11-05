@@ -3,7 +3,6 @@ import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.decomposition import PCA
 from sklearn.impute import SimpleImputer, KNNImputer
-from sklearn.impute._base import _BaseImputer
 from sklearn.metrics import roc_auc_score
 from sklearn.preprocessing import (
     StandardScaler,
@@ -15,10 +14,11 @@ from sklearn.preprocessing import (
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 from statsmodels.tools.tools import add_constant
 
+from dmultipit.base.base_transformer import UnimodalTransformer, MultimodalTransformer
 from dmultipit.dataset._utils import select_radiomics_features_elastic
 
 
-class CustomOmicsImputer(BaseEstimator, TransformerMixin):
+class CustomOmicsImputer(UnimodalTransformer):
     """
     A custom transformer for imputing missing values and encoding categorical features in omics data.
 
@@ -69,6 +69,7 @@ class CustomOmicsImputer(BaseEstimator, TransformerMixin):
         self : object
             Fitted estimator.
         """
+        self.is_fitted_ = True
         self.imputer_ = KNNImputer(n_neighbors=1)
         X[:, self.site_feature] = self.imputer_.fit_transform(X)[:, self.site_feature]
         self.encoder_ = OneHotEncoder(
@@ -100,8 +101,11 @@ class CustomOmicsImputer(BaseEstimator, TransformerMixin):
         a = np.delete(X, self.site_feature, 1)
         return np.hstack((a, b))
 
+    def _get_transformed_dimension(self):
+        return self.len_features_
 
-class CustomImputer(_BaseImputer):
+
+class CustomImputer(UnimodalTransformer):
     """
     Custom imputer for missing values which deals with categorical variables with most frequent imputation and with
     numerical variables with median imputation
@@ -123,6 +127,9 @@ class CustomImputer(_BaseImputer):
 
     mask_num_: 1D array of booleans.
         Boolean mask indicating the numerical columns with missing values.
+
+    n_features_in_: int
+        Number of features (useful for _get_transformed_dimension method).
     """
 
     def __init__(self, categoricals, numericals):
@@ -149,6 +156,9 @@ class CustomImputer(_BaseImputer):
         self: object
             Fitted estimator.
         """
+        self.is_fitted_ = True
+        self.n_features_in_ = X.shpae[1]
+
         if self.categoricals is not None:
             self.mask_cat_ = np.zeros(X.shape[1], bool)
             self.mask_cat_[self.categoricals] = True
@@ -183,8 +193,11 @@ class CustomImputer(_BaseImputer):
             )
         return np.float32(X_imputed)
 
+    def _get_transformed_dimension(self):
+        return self.n_features_in_
 
-class CustomSelection(BaseEstimator, TransformerMixin):
+
+class CustomSelection(MultimodalTransformer):
     """
     Custom univariate selection for classification (based on AUC) tasks.
 
@@ -245,6 +258,8 @@ class CustomSelection(BaseEstimator, TransformerMixin):
         # Xmasked = X[np.sum(np.isnan(X), axis=1) == 0, :]
         # ymasked = y[np.sum(np.isnan(X), axis=1) == 0]
         # self.features_ = np.arange(Xmasked.shape[1])
+        self.is_fitted_ = True
+
         self.features_ = np.arange(X.shape[1])
         scores = np.zeros(X.shape[1])
 
@@ -267,7 +282,7 @@ class CustomSelection(BaseEstimator, TransformerMixin):
             delete = []
             for i in range(len(self.features_) - 1):
                 if i not in delete:
-                    delete += list((i + 1) + np.where(corr[i, i + 1 :] > self.max_corr)[0])
+                    delete += list((i + 1) + np.where(corr[i, i + 1:] > self.max_corr)[0])
             delete = np.unique(delete)
             if len(delete) > 0:
                 self.features_ = np.delete(self.features_, delete)
@@ -333,12 +348,18 @@ class CustomSelection(BaseEstimator, TransformerMixin):
         output = []
         n = 0
         for size in self.n_select_modalities_:
-            output.append(X_all_selected[:, n : n + size])
+            output.append(X_all_selected[:, n: n + size])
             n += size
         return output
 
+    def _get_transformed_dimension(self):
+        return len(self.features_)
 
-class CustomScaler(BaseEstimator, TransformerMixin):
+    def _get_transformed_multi_dimension(self):
+        return self.n_select_modalities_
+
+
+class CustomScaler(UnimodalTransformer):
     """
     A custom data scaler that allows for different scaling strategies and can be applied on a subset of features.
 
@@ -377,6 +398,8 @@ class CustomScaler(BaseEstimator, TransformerMixin):
         self : object
             Fitted estimator.
         """
+
+        self.is_fitted_ = True
 
         if self.strategy == "standardize":
             self.scaler_ = StandardScaler()
@@ -423,8 +446,11 @@ class CustomScaler(BaseEstimator, TransformerMixin):
                 Xnew[:, self.features] = self.scaler_.transform(Xnew[:, self.features])
         return Xnew
 
+    def _get_transformed_dimension(self):
+        return self.scaler_.n_features_in_
 
-class CustomLogTransform(BaseEstimator, TransformerMixin):
+
+class CustomLogTransform(UnimodalTransformer):
     """
     A custom transformer for applying a logarithmic transformation to specified features.
 
@@ -436,7 +462,7 @@ class CustomLogTransform(BaseEstimator, TransformerMixin):
 
     Attributes
     ----------
-    fitted_ : bool
+    is_fitted_ : bool
         Indicates whether the transformer has been fitted.
     """
 
@@ -459,7 +485,8 @@ class CustomLogTransform(BaseEstimator, TransformerMixin):
         self : object
             Fitted estimator.
         """
-        self.fitted_ = True
+        self.is_fitted_ = True
+        self.n_features_in_ = X.shape[1]
         return self
 
     def transform(self, X):
@@ -484,8 +511,11 @@ class CustomLogTransform(BaseEstimator, TransformerMixin):
             Xnew[:, self.features] = np.log(Xnew[:, self.features] + 1)
         return Xnew
 
+    def _get_transformed_dimension(self):
+        return self.n_features_in_
 
-class CustomPCA(BaseEstimator, TransformerMixin):
+
+class CustomPCA(UnimodalTransformer):
     """
     A custom transformer applying PCA on input data (dealing with nan values).
 
@@ -523,6 +553,7 @@ class CustomPCA(BaseEstimator, TransformerMixin):
         self : object
             Fitted estimator.
         """
+        self.is_fitted_ = True
 
         self.pca_ = PCA(n_components=self.n_components, whiten=self.whiten)
         # Missing values are disregarded in fit
@@ -546,8 +577,11 @@ class CustomPCA(BaseEstimator, TransformerMixin):
 
         return self.pca_.transform(X)
 
+    def _get_transformed_dimension(self):
+        return self.n_components
 
-class CustomVIF(BaseEstimator, TransformerMixin):
+
+class CustomVIF(UnimodalTransformer):
     """
     Select features with Variance Inflation Factor (VIF) (i.e., measure of multicolinearity between features), removing
     features that contribute the most to multicolinearity (i.e., high VIF values)
@@ -564,7 +598,6 @@ class CustomVIF(BaseEstimator, TransformerMixin):
     ----------
     features_: list of int
         Indexes of selected features.
-
     """
 
     def __init__(self, cutoff=5, power_transform=False):
@@ -586,6 +619,9 @@ class CustomVIF(BaseEstimator, TransformerMixin):
         self: object
             Fitted estimator.
         """
+
+        self.is_fitted_ = True
+
         if self.power_transform:
             X_temp = PowerTransformer().fit_transform(np.copy(X))
         else:
@@ -615,6 +651,9 @@ class CustomVIF(BaseEstimator, TransformerMixin):
             2D array of shape (n_samples, n_selected_features)
         """
         return X[:, self.features_]
+
+    def _get_transformed_dimension(self):
+        return len(self.features_)
 
 
 def _run_vif_analysis(X):
@@ -687,7 +726,7 @@ class MSKCCRadiomicsTransform(BaseEstimator, TransformerMixin):
 
     # aggregation can be either by average or taking the first lesion sorted by index
     def __init__(
-        self, lesion_type, robustness_cutoff, outlier_cutoff, l1_C, aggregation
+            self, lesion_type, robustness_cutoff, outlier_cutoff, l1_C, aggregation
     ):
         self.lesion_type = lesion_type
         self.robustness_cutoff = robustness_cutoff
@@ -732,7 +771,7 @@ class MSKCCRadiomicsTransform(BaseEstimator, TransformerMixin):
                                                                                   y,
                                                                                   self.l1_C,
                                                                                   self.outlier_cutoff,
-                                                                                  self.robustness_cutoff,)
+                                                                                  self.robustness_cutoff, )
         elif isinstance(self.lesion_type, str):
             self.selected_features_[
                 self.lesion_type
@@ -770,34 +809,34 @@ class MSKCCRadiomicsTransform(BaseEstimator, TransformerMixin):
             data = data.reset_index()
             data = (
                 data[data["job_tag"] == "filtered-radiomics"]
-                .drop(columns=["job_tag", "lesion_index"])
-                .set_index("main_index")
+                    .drop(columns=["job_tag", "lesion_index"])
+                    .set_index("main_index")
             )
             for lesion_type, selected_features in self.selected_features_.items():
                 transformed_data = (
                     data[list(selected_features) + ["site"]]
-                    .groupby(level=0)
-                    .apply(_agg_average, site=lesion_type)
-                    .drop("index", errors="ignore")
-                    .reindex(indexes)
-                    .values
+                        .groupby(level=0)
+                        .apply(_agg_average, site=lesion_type)
+                        .drop("index", errors="ignore")
+                        .reindex(indexes)
+                        .values
                 )
                 output = output + (transformed_data,)
         elif self.aggregation == "largest":
             data = data.reset_index()
             data = (
                 data[data["job_tag"] == "filtered-radiomics"]
-                .drop(columns="job_tag")
-                .set_index("main_index")
+                    .drop(columns="job_tag")
+                    .set_index("main_index")
             )
             for lesion_type, selected_features in self.selected_features_.items():
                 transformed_data = (
                     data[list(selected_features) + ["site", "lesion_index"]]
-                    .groupby(level=0)
-                    .apply(_agg_largest, site=lesion_type)
-                    .droplevel(1)
-                    .reindex(indexes)
-                    .values
+                        .groupby(level=0)
+                        .apply(_agg_largest, site=lesion_type)
+                        .droplevel(1)
+                        .reindex(indexes)
+                        .values
                 )
                 output = output + (transformed_data,)
         return output
@@ -817,9 +856,9 @@ def _agg_largest(g, site):
     """
     g = (
         g[g["site"] == site]
-        .drop(columns="site")
-        .sort_values("lesion_index", ascending=True)
-        .drop(columns="lesion_index")
-        .reset_index()
+            .drop(columns="site")
+            .sort_values("lesion_index", ascending=True)
+            .drop(columns="lesion_index")
+            .reset_index()
     )
     return g.drop_duplicates(subset=["main_index"]).drop(columns="main_index")
