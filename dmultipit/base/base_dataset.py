@@ -182,7 +182,7 @@ class MultiModalDataset(Dataset):
             if processing is None:
                 output.append(None)
             # 2. Fitted transformer
-            elif _check_transform(processing):
+            elif check_transform(processing):
                 try:
                     _check_is_fitted(processing)
                 except NotFittedError:
@@ -198,7 +198,7 @@ class MultiModalDataset(Dataset):
                     y=self.labels[mask],
                     params=processing,
                 )
-                if _check_transform(processing):
+                if check_transform(processing):
                     output.append(processing)
                 else:
                     print("when processing is a dictionary it should refer to a transformer class which inherits from"
@@ -233,7 +233,7 @@ class MultiModalDataset(Dataset):
         if multimodal_processing is None:
             output = None
         # 2. Fitted transformer
-        elif _check_transform(multimodal_processing):
+        elif check_transform(multimodal_processing):
             try:
                 _check_is_fitted(multimodal_processing)
             except NotFittedError:
@@ -337,14 +337,14 @@ def _check_is_fitted(test_object):
     return
 
 
-def _check_transform(test_object):
+def check_transform(test_object):
     """Check whether the object belongs to the sklearn.base.TransformerMixin class (or a pipeline composed of
     transformers).
     """
     check = False
     classes = inspect.getmro(test_object.__class__)
     if classes[0].__name__ == "Pipeline":
-        check = all([_check_transform(estim) for estim in test_object])
+        check = all([check_transform(estim) for estim in test_object])
     else:
         for parentClass in classes[1:]:
             if parentClass.__name__ == "TransformerMixin":
