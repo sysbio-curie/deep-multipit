@@ -8,7 +8,7 @@ import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 
-from _utils import train_test_split, get_dataset
+from _utils import train_test_split, get_dataset, build_model
 
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
@@ -17,9 +17,6 @@ sys.path.insert(0, parentdir)
 import dmultipit.dataset.loader as module_data
 import dmultipit.model.loss as module_loss
 import dmultipit.model.metric as module_metric
-from dmultipit.model import model as module_arch
-import dmultipit.model.attentions as module_att
-import dmultipit.model.embeddings as module_emb
 from dmultipit.parse_config import ConfigParser
 from dmultipit.testing import Testing
 from dmultipit.utils import prepare_device
@@ -35,54 +32,67 @@ def main(config_dict):
         order=config_dict["architecture"]['order'],
         keep_unlabelled=config_dict["training"]["pseudo_labelling"]
     )()
+
+    # deal with train-validation split if any
+    train_index = np.arange(len(labels_train))
+    val_index = config_dict["training_data"]["val_index"]
+    if val_index is not None:
+        train_index = np.delete(train_index, val_index)
+
+    # deal with radiomics data for MSKCC
+    radiomics, rad_transform = None, None
+    if config_dict["MSKCC"]:
+        rad_transform = config_dict["radiomics_transform"]
+        radiomics_list = []
+        for item in ["radiomics_PL", "radiomics_LN", "radiomics_PC"]:
+            try:
+                radiomics_list.append(config_dict["architecture"]["order"].index(item))
+            except ValueError:
+                pass
+        radiomics = int(np.min(radiomics_list)) if len(radiomics_list) > 0 else None
+
     training_dataset, *_ = train_test_split(
-        split=config_dict["training_data"]["val_index"],
+        train_index=train_index,
+        test_index=val_index,
         labels=labels_train,
         list_raw_data=list_raw_data_train,
         dataset_name=config_dict["training_data"]["dataset"],
-        list_processings=[config_dict["training_data"]["processing"][modality]
-                          for modality in config_dict["architecture"]["order"]],
+        list_unimodal_processings=[
+            config_dict["training_data"]["processing"][modality]
+            for modality in config_dict["architecture"]["order"]
+        ],
+        multimodal_processing=(None
+                               if len(config_dict["architecture"]["order"]) == 1
+                               else config_dict["training_data"]["processing"]["multimodal"]
+                               ),
         drop_modas=config_dict["training_data"]["drop_modalities"],
-        keep_unlabelled=config_dict["training"]["pseudo_labelling"]
+        keep_unlabelled=config_dict["training"]["pseudo_labelling"],
+        rad_transform=rad_transform,
+        radiomics=radiomics
     )
 
-    *list_raw_data, labels = config_dict.init_ftn(
-        ["test_data", "loader"], module_data, order=config_dict["architecture"]['order']
-    )()
+    *list_raw_data, labels = config_dict.init_ftn(["test_data", "loader"],
+                                                  module_data,
+                                                  order=config_dict["architecture"]['order'])()
     dataset = get_dataset(
         labels=labels,
         list_raw_data=list_raw_data,
         dataset_name=config_dict["test_data"]["dataset"],
-        list_processings=training_dataset.list_processings,
+        list_unimodal_processings=training_dataset.list_processings,
+        multimodal_processing=training_dataset.multimodal_processing,
         indexes=np.arange(len(labels)),
+        drop_modas=False,
+        keep_unlabelled=False,
+        radiomics=radiomics,
+        rad_transform=training_dataset.rad_transform if config_dict["MSKCC"] else None,
     )
 
     # 2. load data loader
     data_loader = DataLoader(dataset=dataset)
 
     # 3. build model architecture then print to console
-    if config_dict["architecture"]["intermediate_fusion"]:
-
-        model = module_arch.InterAttentionFusion(
-            modality_embeddings=[config_dict.init_obj(("architecture", "modality_embeddings", modality), module_emb)
-                                 for modality in config_dict["architecture"]["order"]
-                                 ],
-            attention=config_dict.init_obj(
-                ["architecture", "attention"], module_att
-            ),
-            predictor=config_dict.init_obj(["architecture", "predictor"], module_emb),
-        )
-    else:
-        model = module_arch.LateAttentionFusion(
-            modality_embeddings=[config_dict.init_obj(("architecture", "modality_embeddings", modality), module_emb)
-                                 for modality in config_dict["architecture"]["order"]
-                                 ],
-            multimodalattention=config_dict.init_obj(
-                ["architecture", "attention"], module_att
-            )
-        )
-
-    logger.info(model)
+    device, _ = prepare_device(config_dict["n_gpu"])
+    model = build_model(config_dict, device)
 
     # 4. Load checkpoint
     assert config_dict.resume is not None, "No existing checkpoint"
@@ -94,17 +104,11 @@ def main(config_dict):
         model = torch.nn.DataParallel(model)
     model.load_state_dict(state_dict)
 
-    # 5. prepare model for testing
-    device, _ = prepare_device(config_dict["n_gpu"])
-    model = model.to(device)
-
-    # 6. get function handles of loss and metrics
+    # 5. get function handles of loss and metrics
     loss_fn = config_dict.init_obj(["testing", "loss"], module_loss)
-    metric_fns = [
-        getattr(module_metric, met) for met in config_dict["testing"]["metrics"]
-    ]
+    metric_fns = [getattr(module_metric, met) for met in config_dict["testing"]["metrics"]]
 
-    # 7. load tester, test and save results
+    # 6. load tester, test and save results
     testing = Testing(
         model=model,
         loss_ftn=loss_fn,
@@ -115,34 +119,12 @@ def main(config_dict):
         intermediate_fusion=config_dict["architecture"]["intermediate_fusion"],
     )
 
-    # 7.1 test
-    testing.test(
-        collect_a=config_dict["testing"]["save_attentions"],
-        collect_modalityemb=config_dict["testing"]["save_modality_embeddings"],
-        collect_fusedemb=config_dict["testing"]["save_fused_embeddings"],
-        collect_modalitypred=config_dict["testing"]["save_modality_predictions"]
-    )
+    # 6.1 test
+    testing.test(collect_a=config_dict["testing"]["save_attentions"],
+                 collect_modalitypred=config_dict["testing"]["save_modality_predictions"]
+                 )
 
-    # 7.2 save embeddings
-    if config_dict["architecture"]["intermediate_fusion"]:
-        if config_dict["testing"]["save_modality_embeddings"]:
-            indexes = [(i, j) for i in dataset.sample_names for j in config_dict["architecture"]["order"]]
-            df_modalityembs = pd.DataFrame(
-                torch.vstack(testing.modality_emb).numpy(),
-                index=pd.MultiIndex.from_tuples(indexes, names=["sample", "modality"]),
-            )
-            df_modalityembs.to_csv(config_dict.save_dir / "modality_embeddings.csv")
-            del df_modalityembs
-
-        if config_dict["testing"]["save_fused_embeddings"]:
-            df_fusedembs = pd.DataFrame(
-                torch.vstack(testing.fused_emb).numpy(),
-                index=dataset.sample_names,
-            )
-            df_fusedembs.to_csv(config_dict.save_dir / "fused_embeddings.csv")
-            del df_fusedembs
-
-    # 7.3 save modality predictions:
+    # 6.2 save modality predictions:
     if config_dict["testing"]["save_modality_predictions"]:
         df_modalitypreds = pd.DataFrame(torch.vstack(testing.modalitypreds).numpy(),
                                         index=dataset.sample_names,
@@ -150,7 +132,7 @@ def main(config_dict):
         df_modalitypreds.to_csv(config_dict.save_dir / "modality_predictions.csv")
         del df_modalitypreds
 
-    # 7.4 save attentions
+    # 6.3 save attentions
     if config_dict["testing"]["save_attentions"]:
         df_att = pd.DataFrame(
             torch.vstack(testing.attentions).numpy(),
@@ -160,14 +142,9 @@ def main(config_dict):
         df_att.to_csv(config_dict.save_dir / "attentions.csv")
         del df_att
 
-    # 7.4 save outputs
+    # 6.4 save outputs
     df_out = pd.DataFrame(
-        torch.hstack(
-            (
-                testing.outputs.view(-1, 1),
-                torch.sigmoid(testing.outputs.view(-1, 1)),
-            )
-        ),
+        torch.hstack((testing.outputs.view(-1, 1),  torch.sigmoid(testing.outputs.view(-1, 1)))),
         columns=["outputs", "probas"],
         index=dataset.sample_names,
     )
