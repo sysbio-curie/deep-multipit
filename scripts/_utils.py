@@ -56,7 +56,7 @@ def get_dataset(
          operations followed by a PCA (to be defined in the fit_process method !))
         * If sklearn.base.TransformerMixin it should correspond to a fitted transformer !
 
-    multimodal_processing: dictionary, sklearn.base.TransformerMixin and None
+    multimodal_processing: dict, sklearn.base.TransformerMixin and None
         Processing operations to apply to the multimodal data set.
         * If None no operation is performed
         * If dictionary it should define a processing strategy to be fitted on the data (to be defined in the
@@ -95,6 +95,7 @@ def get_dataset(
 
     if indexes is not None:
 
+        # select indexes in raw data sets
         data_sets = []
         for raw_data in list_raw_data:
             if isinstance(raw_data, np.ndarray):
@@ -112,12 +113,13 @@ def get_dataset(
         bool_mask = np.sum(np.isnan(all_data), axis=1) == all_data.shape[1]
         data_sets = [data[~bool_mask] for data in data_sets]
 
+        # select indexes in labels
         if isinstance(labels, np.ndarray):
             labels = labels.copy()[indexes][~bool_mask]
         else:
             labels = labels.copy().iloc[indexes].values[~bool_mask]
 
-        # Create
+        # Create MultiModalDataset
         if dataset_name == "MSKCCDataset":
             dataset = getattr(module_data, dataset_name)(
                 list_raw_data=data_sets,
@@ -137,6 +139,7 @@ def get_dataset(
                 keep_unlabelled=keep_unlabelled,
             )
 
+        #
         if drop_modas:
             setattr(dataset, "transform", module_data.DropModalities())
 
@@ -184,8 +187,9 @@ def train_test_split(
 
     bool_mask_test: boolean array of shape (n_test_samples,)
         Indicate samples with only NaN values.
-
     """
+
+    # create training dataset
     dataset_train, _ = get_dataset(
         labels,
         list_raw_data,
@@ -199,18 +203,7 @@ def train_test_split(
         rad_transform,
     )
 
-    dataset_test, bool_mask_test = get_dataset(
-        labels,
-        list_raw_data,
-        dataset_name,
-        dataset_train.list_unimodal_processings,
-        dataset_train.multimodal_processing,
-        test_index,
-        keep_unlabelled=False,
-        radiomics=radiomics,
-        rad_transform=dataset_train.rad_transform if rad_transform is not None else None,
-    )
-
+    # create training dataset with unlabelled data if needed (for semi-supervised strategy)
     dataset_train_unlabelled = None
 
     if keep_unlabelled:
@@ -226,6 +219,19 @@ def train_test_split(
             )
         else:
             warnings.warn("Training data contains no unlabelled data. dataset_train_unlabelled is set to None")
+
+    # create test dataset with fitted unimodal and multimodal processings from training data
+    dataset_test, bool_mask_test = get_dataset(
+        labels,
+        list_raw_data,
+        dataset_name,
+        dataset_train.list_unimodal_processings,
+        dataset_train.multimodal_processing,
+        test_index,
+        keep_unlabelled=False,
+        radiomics=radiomics,
+        rad_transform=dataset_train.rad_transform if rad_transform is not None else None,
+    )
 
     return dataset_train, dataset_train_unlabelled, dataset_test, bool_mask_test
 
@@ -278,8 +284,9 @@ def train_val_test_split(
 
     bool_mask_train: boolean array of shape (n_val_samples,)
         Indicate samples with only NaN values.
-
     """
+
+    # create training dataset
     dataset_train, bool_mask_train = get_dataset(
         labels,
         list_raw_data,
@@ -292,6 +299,21 @@ def train_val_test_split(
         radiomics,
         rad_transform,
     )
+
+    # create training dataset with unlabelled data if needed (for semi-supervised strategy)
+    dataset_train_unlabelled = None
+
+    if keep_unlabelled:
+        if (dataset_train.unlabelled_data is not None) and (len(dataset_train.unlabelled_data) > 0):
+            dataset_train_unlabelled = CustomSubset(dataset_train, dataset_train.unlabelled_data)
+            dataset_train = CustomSubset(
+                dataset_train,
+                list(set(range(len(dataset_train))) - set(dataset_train.unlabelled_data)),
+            )
+        else:
+            warnings.warn("Training data contains no unlabelled data. dataset_train_unlabelled is set to None")
+
+    # create validation dataset with fitted unimodal and multimodal processings from training data
     dataset_val, _ = get_dataset(
         labels,
         list_raw_data,
@@ -305,6 +327,8 @@ def train_val_test_split(
         if rad_transform is not None
         else None,
     )
+
+    # create test dataset with fitted unimodal and multimodal processings from training data
     dataset_test, bool_mask_test = get_dataset(
         labels,
         list_raw_data,
@@ -319,24 +343,12 @@ def train_val_test_split(
         else None,
     )
 
-    dataset_train_unlabelled = None
-
-    if keep_unlabelled:
-        if (dataset_train.unlabelled_data is not None) and (len(dataset_train.unlabelled_data) > 0):
-            dataset_train_unlabelled = CustomSubset(dataset_train, dataset_train.unlabelled_data)
-            dataset_train = CustomSubset(
-                dataset_train,
-                list(set(range(len(dataset_train))) - set(dataset_train.unlabelled_data)),
-            )
-        else:
-            warnings.warn("Training data contains no unlabelled data. dataset_train_unlabelled is set to None")
-
     return dataset_train, dataset_train_unlabelled, dataset_val, dataset_test, bool_mask_test, bool_mask_train
 
 
 def build_model(config_dict, device, logger=None):
     """
-    Built multimodal predictive model for config dictionary
+    Build multimodal predictive model from configuration dictionary
 
     Parameters
     ----------
@@ -352,6 +364,8 @@ def build_model(config_dict, device, logger=None):
     model: dmultipit.model.model.InterAttentionFusion or dmultipit.model.model.LateAttentionFusion
 
     """
+
+    # build embedding modules for each modality
     embeddings = [
         config_dict.init_obj(
             ("architecture", "modality_embeddings", modality), module_emb
@@ -361,12 +375,16 @@ def build_model(config_dict, device, logger=None):
 
     if config_dict["architecture"]["intermediate_fusion"]:
 
+        # build intermediate fusion model (see dmultipit.model.model)
         model = module_arch.InterAttentionFusion(
             modality_embeddings=embeddings,
             attention=config_dict.init_obj(["architecture", "attention"], module_att),
             predictor=config_dict.init_obj(["architecture", "predictor"], module_emb),
         )
     else:
+
+        # build late fusion model (see dmultipit.model.model), where attention modules have the same dim input as
+        # embedding modules for the different modalities
         model = module_arch.LateAttentionFusion(
             modality_embeddings=embeddings,
             multimodalattention=config_dict.init_obj(
@@ -375,13 +393,15 @@ def build_model(config_dict, device, logger=None):
                 dim_input=[
                     config_dict["architecture"]["modality_embeddings"][m]["args"]["dim_input"]
                     for m in config_dict["architecture"]["order"]
-                          ],
+                ],
             ),
         )
+
     if logger is not None:
         logger.info(model)
 
     model = model.to(device)
+
     return model
 
 
