@@ -113,12 +113,8 @@ class ConfigParser:
             checkpoint = torch.load(resume)
             config = checkpoint["config"].config
 
-            # config = read_json(resume.parent / 'config.json')
-            # config = read_yaml(resume.parent / 'config_late.yaml')
-
             # update configuration file with specific configurations for the experiment
             if args.experiment is not None:
-                # config.update(read_json(args.experiment))
                 config.update(read_yaml(args.experiment))
         else:
             msg_no_cfg = "Configuration file need to be specified. Add '-c config_late.yaml', for example."
@@ -128,8 +124,6 @@ class ConfigParser:
             # update configuration file with specific configurations for the experiment
             msg_no_exp = "Experiment file need to be specified. Add '-e config_exp.yaml', for example."
             assert args.experiment is not None, msg_no_exp
-            # config = read_json(args.config)
-            # config.update(read_json(args.experiment))
             config = read_yaml(args.config)
             config.update(read_yaml(args.experiment))
 
@@ -175,11 +169,8 @@ class ConfigParser:
         obj_config = _get_by_path(self, name)
         module_name = obj_config["type"]
         module_args = {} if obj_config["args"] is None else dict(obj_config["args"])
-        # module_name = self[name]['type']
-        # module_args = dict(self[name]['args'])
-        assert all(
-            [k not in module_args for k in kwargs]
-        ), "Overwriting kwargs given in config file is not allowed"
+
+        assert all([k not in module_args for k in kwargs]), "Overwriting kwargs given in config file is not allowed"
         module_args.update(kwargs)
         return partial(getattr(module, module_name), *args, **module_args)
 
