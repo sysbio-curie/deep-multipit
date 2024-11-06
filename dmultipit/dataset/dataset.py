@@ -168,7 +168,8 @@ class MSKCCDataset(MultiModalDataset):
         super(MSKCCDataset, self).__init__(
             list_raw_data,
             labels,
-            list_unimodal_processings,
+            keep_unlabelled=False,
+            list_unimodal_processings=list_unimodal_processings,
             multimodal_processing=None,
             transform=transform,
         )
