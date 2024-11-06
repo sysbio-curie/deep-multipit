@@ -145,7 +145,4 @@ def select_radiomics_features_elastic(train_df, outcomes_df, l1_C=0.1, outlier_c
     # 2.3 Keep features with non-zero coefficients
     selected_features = train_df.columns[np.where(clf_lr.coef_[0])[0]]
 
-    # df_coef = pd.DataFrame(clf_lr.coef_[0], index=train_df.columns, columns=['coef']).abs().sort_values(by='coef',
-    #            ascending=False)
-
-    return selected_features  # , df_coef
+    return selected_features
