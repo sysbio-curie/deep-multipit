@@ -500,7 +500,7 @@ class ProgressParallel(Parallel):
         self._pbar.refresh()
 
 
-def fing_logrank_threshold(risk_score, labels_surv):
+def find_logrank_threshold(risk_score, labels_surv):
     """
     Find cutoff value that maximize logrank test (searching between 30th and 71st percentiles of provided risk scores)
 
