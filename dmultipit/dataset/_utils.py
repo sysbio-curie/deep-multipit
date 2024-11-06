@@ -64,10 +64,14 @@ def select_by_interlesion_variance(df, cutoff=0.1):
     df = df.reset_index().set_index(["main_index", "lesion_index"])
     df = df[df["job_tag"] == "pertubation-radiomics"]
 
+    x = df.copy(deep=True).drop(columns=["job_tag", "site"], errors="ignore")
+    x = x.loc[:, x.nunique() > 1]  # remove constant features
+
     robustness_score = (
-        df.groupby(level=[0, 1]).agg(np.std).mean()
-        / df.groupby(level=[0, 1]).agg(np.mean).std()
+        x.groupby(level=[0, 1]).agg(np.std).mean()
+        / x.groupby(level=[0, 1]).agg(np.mean).std()
     )
+
     robust_features = robustness_score[robustness_score < cutoff].index
 
     # variance_ranks = interlesion_variance.rank(method='min').rename("interlesion_variance_rank")
