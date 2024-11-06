@@ -82,7 +82,7 @@ def main(config_dict):
                 pass
         radiomics = int(np.min(radiomics_list)) if len(radiomics_list) > 0 else None
 
-    dataset_train, dataset_train_unlabelled, dataset_val = train_test_split(
+    dataset_train, dataset_train_unlabelled, dataset_val, _ = train_test_split(
         train_index=train_index,
         test_index=val_index,
         labels=labels,
