@@ -157,7 +157,7 @@ class CustomImputer(UnimodalTransformer):
             Fitted estimator.
         """
         self.is_fitted_ = True
-        self.n_features_in_ = X.shpae[1]
+        self.n_features_in_ = X.shape[1]
 
         if self.categoricals is not None:
             self.mask_cat_ = np.zeros(X.shape[1], bool)
@@ -767,11 +767,13 @@ class MSKCCRadiomicsTransform(BaseEstimator, TransformerMixin):
         self.selected_features_ = {}
         if isinstance(self.lesion_type, list):
             for site in self.lesion_type:
-                self.selected_features_[site] = select_radiomics_features_elastic(data[data["site"] == site],
-                                                                                  y,
-                                                                                  self.l1_C,
-                                                                                  self.outlier_cutoff,
-                                                                                  self.robustness_cutoff, )
+                self.selected_features_[site] = select_radiomics_features_elastic(
+                    data[data["site"] == site],
+                    y,
+                    self.l1_C,
+                    self.outlier_cutoff,
+                    self.robustness_cutoff
+                )
         elif isinstance(self.lesion_type, str):
             self.selected_features_[
                 self.lesion_type
