@@ -82,7 +82,7 @@ class Testing:
 
         self.data_loader = data_loader
 
-        self.logger = self.config.get_logger("test", verbosity=0)
+        self.logger = self.config.get_logger("test", config["testing"]["verbosity"])
 
         self.targets = None
         self.outputs = None
