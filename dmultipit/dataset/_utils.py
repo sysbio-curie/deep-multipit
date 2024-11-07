@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import zscore
 from sklearn.linear_model import LogisticRegression
@@ -68,8 +67,8 @@ def select_by_interlesion_variance(df, cutoff=0.1):
     x = x.loc[:, x.nunique() > 1]  # remove constant features
 
     robustness_score = (
-        x.groupby(level=[0, 1]).agg(np.std).mean()
-        / x.groupby(level=[0, 1]).agg(np.mean).std()
+            x.groupby(level=[0, 1]).agg(np.std).mean()
+            / x.groupby(level=[0, 1]).agg(np.mean).std()
     )
 
     robust_features = robustness_score[robustness_score < cutoff].index
