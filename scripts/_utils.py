@@ -13,24 +13,24 @@ currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentfram
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0, parentdir)
 
-import dmultipit.dataset.dataset as module_data
 from dmultipit.base.base_dataset import CustomSubset, check_transform
-from dmultipit.model import model as module_arch
+import dmultipit.dataset.dataset as module_data
+import dmultipit.model.model as module_arch
 import dmultipit.model.attentions as module_att
 import dmultipit.model.embeddings as module_emb
 
 
 def get_dataset(
-    labels,
-    list_raw_data,
-    dataset_name,
-    list_unimodal_processings,
-    multimodal_processing,
-    indexes,
-    drop_modas=False,
-    keep_unlabelled=False,
-    radiomics=None,
-    rad_transform=None,
+        labels,
+        list_raw_data,
+        dataset_name,
+        list_unimodal_processings,
+        multimodal_processing,
+        indexes,
+        drop_modas=False,
+        keep_unlabelled=False,
+        radiomics=None,
+        rad_transform=None,
 ):
     """
     Create multimodal dataset from raw data
@@ -89,44 +89,26 @@ def get_dataset(
     data_set: MultiModalDataset object or None
         A None value is returned when no indexes were passed as input.
 
-    bool_mask: boolean array of size (n_samples,) or None
+    bool_mask_missing: boolean array of size (n_samples,) or None
         A None value is returned when no indexes were passed as input. Otherwise, indicate samples with only NaN values.
     """
 
     if indexes is not None:
 
-        # select indexes in raw data sets
-        data_sets = []
-        for raw_data in list_raw_data:
-            if isinstance(raw_data, np.ndarray):
-                data_sets.append(raw_data.copy()[indexes, :])
-            elif isinstance(raw_data, pd.DataFrame):
-                data_sets.append(raw_data.copy().iloc[indexes, :].values)
-            elif isinstance(raw_data, tuple):
-                new_ind = raw_data[1][indexes]
-                new_data = raw_data[0].loc[new_ind.intersection(raw_data[0].index)]
-                new_data.index.names = ["main_index"]
-                data_sets.append((new_data, new_ind))
+        # select indexes in raw data sets and discard all samples with only missing values
+        data_sets, labels, bool_mask_missing = _select_indexes(list_raw_data, labels, indexes)
 
-        # discard samples with only missing values
-        all_data = np.hstack(data_sets)
-        bool_mask = np.sum(np.isnan(all_data), axis=1) == all_data.shape[1]
-        data_sets = [data[~bool_mask] for data in data_sets]
-
-        # select indexes in labels
-        if isinstance(labels, np.ndarray):
-            labels = labels.copy()[indexes][~bool_mask]
-        else:
-            labels = labels.copy().iloc[indexes].values[~bool_mask]
-
-        # Create MultiModalDataset
+        # create MultiModalDataset
         if dataset_name == "MSKCCDataset":
+
+            if (multimodal_processing is not None) or keep_unlabelled:
+                warnings.warn("multimodal_processing is not used with MSKCC dataset and will be ignored as well as "
+                              "keep_unlabelled.")
+
             dataset = getattr(module_data, dataset_name)(
                 list_raw_data=data_sets,
                 labels=labels,
                 list_unimodal_processings=list_unimodal_processings,
-                multimodal_processing=multimodal_processing,
-                keep_unlabelled=keep_unlabelled,
                 radiomics=radiomics,
                 rad_transform=rad_transform,
             )
@@ -139,28 +121,27 @@ def get_dataset(
                 keep_unlabelled=keep_unlabelled,
             )
 
-        #
         if drop_modas:
             setattr(dataset, "transform", module_data.DropModalities())
 
     else:
-        dataset, bool_mask = None, None
+        dataset, bool_mask_missing = None, None
 
-    return dataset, bool_mask
+    return dataset, bool_mask_missing
 
 
 def train_test_split(
-    train_index,
-    test_index,
-    labels,
-    list_raw_data,
-    dataset_name,
-    list_unimodal_processings,
-    multimodal_processing,
-    drop_modas,
-    keep_unlabelled,
-    radiomics=None,
-    rad_transform=None,
+        train_index,
+        test_index,
+        labels,
+        list_raw_data,
+        dataset_name,
+        list_unimodal_processings,
+        multimodal_processing,
+        drop_modas,
+        keep_unlabelled,
+        radiomics=None,
+        rad_transform=None,
 ):
     """
     Create training and test data for a given train-test split. Unimodal and multimodal processings are fitted to the
@@ -208,7 +189,7 @@ def train_test_split(
 
     if keep_unlabelled:
         if (dataset_train.unlabelled_data is not None) and (
-            len(dataset_train.unlabelled_data) > 0
+                len(dataset_train.unlabelled_data) > 0
         ):
             dataset_train_unlabelled = CustomSubset(
                 dataset_train, dataset_train.unlabelled_data
@@ -243,18 +224,18 @@ def train_test_split(
 
 
 def train_val_test_split(
-    train_index,
-    test_index,
-    val_index,
-    labels,
-    list_raw_data,
-    dataset_name,
-    list_unimodal_processings,
-    multimodal_processing,
-    drop_modas,
-    keep_unlabelled,
-    radiomics=None,
-    rad_transform=None,
+        train_index,
+        test_index,
+        val_index,
+        labels,
+        list_raw_data,
+        dataset_name,
+        list_unimodal_processings,
+        multimodal_processing,
+        drop_modas,
+        keep_unlabelled,
+        radiomics=None,
+        rad_transform=None,
 ):
     """
     Create training, validation and test data for a given train-val-test split. Unimodal and multimodal processings are
@@ -311,7 +292,7 @@ def train_val_test_split(
 
     if keep_unlabelled:
         if (dataset_train.unlabelled_data is not None) and (
-            len(dataset_train.unlabelled_data) > 0
+                len(dataset_train.unlabelled_data) > 0
         ):
             dataset_train_unlabelled = CustomSubset(
                 dataset_train, dataset_train.unlabelled_data
@@ -530,3 +511,64 @@ def find_logrank_threshold(risk_score, labels_surv):
         cutoffs.append(c)
         pvals.append(test.summary["p"].values[0])
     return cutoffs[np.argmin(pvals)]
+
+
+def _select_indexes(list_raw_data, labels, indexes):
+    """
+    Select a subset of indexes in a list of raw datasets and discard samples with only missing values
+
+    Note
+    ----
+    The main difficulty that makes the function quite complex is for dealing with radiomic data from MSKCC dataset
+    which are loaded as a tuple of dataframe (radiomic data) and indexes (all samples included in the analysis, even
+    those with missing radiomic modalities).
+    """
+
+    # select indexes in raw data sets
+    data_sets = []
+    missing_modalities = np.zeros((len(indexes), len(list_raw_data)))
+    for i, raw_data in enumerate(list_raw_data):
+        if isinstance(raw_data, np.ndarray):
+            raw_data_subset = raw_data.copy()[indexes, :]
+            missing_modalities[:, i] = np.sum(np.isnan(raw_data_subset), axis=1) == raw_data_subset.shape[1]
+            data_sets.append(raw_data_subset)
+        elif isinstance(raw_data, pd.DataFrame):
+            raw_data_subset = raw_data.copy().iloc[indexes, :].values
+            missing_modalities[:, i] = np.sum(np.isnan(raw_data_subset), axis=1) == raw_data_subset.shape[1]
+            data_sets.append(raw_data_subset)
+
+        # dealing with radiomic MSKCC data
+        elif isinstance(raw_data, tuple):
+            new_ind_subset = raw_data[1][indexes]
+            raw_data_subset = raw_data[0].loc[new_ind_subset.intersection(raw_data[0].index)]
+            raw_data_subset.index.names = ["main_index"]
+            temp = pd.DataFrame(index=new_ind_subset)
+            tempbis = (raw_data_subset[raw_data_subset['job_tag'] == "filtered-radiomics"]
+                       .drop(columns=["main_index", "job_tag", "site", "lesion_index"], errors="ignore"))
+            tempbis = tempbis[~tempbis.index.duplicated(keep='first')]
+            temp['missing'] = tempbis.isna().sum(axis=1) == tempbis.shape[1]
+            temp = temp.fillna(value=True)
+            missing_modalities[:, i] = temp["missing"].values
+            data_sets.append((raw_data_subset, new_ind_subset))
+
+    bool_mask_missing = np.all(missing_modalities, axis=1)
+
+    cured_data_sets = []
+    for data in data_sets:
+        if isinstance(data, np.ndarray):
+            cured_data_sets.append(data[~bool_mask_missing])
+
+        # dealing with radiomic MSKCC data
+        elif isinstance(data, tuple):
+            new_ind = data[1][~bool_mask_missing]
+            new_data = data[0].loc[new_ind.intersection(data[0].index)]
+            new_data.index.names = ["main_index"]
+            cured_data_sets.append((new_data, new_ind))
+
+    # select indexes in labels
+    if isinstance(labels, np.ndarray):
+        labels = labels.copy()[indexes][~bool_mask_missing]
+    else:
+        labels = labels.copy().iloc[indexes][~bool_mask_missing]
+
+    return cured_data_sets, labels, bool_mask_missing
