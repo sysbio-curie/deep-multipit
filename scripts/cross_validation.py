@@ -28,6 +28,8 @@ from dmultipit.testing import Testing
 from dmultipit.trainer import Trainer
 from dmultipit.utils import prepare_device
 
+# filter RuntimeWarnings that appear when dealing with PowerTransformer within the pre-processing step for radiomic
+# MSKCC data. We recommend not using this line at first as it may hide other issues.
 warnings.simplefilter(action="ignore", category=FutureWarning)
 warnings.simplefilter(action="ignore", category=RuntimeWarning)
 

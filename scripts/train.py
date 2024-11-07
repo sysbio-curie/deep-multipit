@@ -3,6 +3,7 @@ import collections
 import inspect
 import os
 import sys
+import warnings
 
 import numpy as np
 import torch
@@ -21,6 +22,10 @@ import dmultipit.model.metric as module_metric
 from dmultipit.parse_config import ConfigParser
 from dmultipit.trainer import Trainer
 from dmultipit.utils import prepare_device
+
+# filter RuntimeWarnings that appear when dealing with PowerTransformer within the pre-processing step for radiomic
+# MSKCC data. We recommend not using this line at first as it may hide other issues.
+# warnings.simplefilter(action="ignore", category=RuntimeWarning)
 
 
 def main(config_dict):
@@ -171,7 +176,7 @@ def main(config_dict):
         lr_scheduler = config_dict.init_obj(["training", "lr_scheduler"], torch.optim.lr_scheduler, optimizer)
 
     if config_dict["training"]["balanced_weights"] and config_dict["training"]["loss"]["type"] == "BCELogitLoss":
-        weight = (dataset_train.labels == 0).sum()/(dataset_train.labels == 1).sum()
+        weight = (dataset_train.labels == 0).sum() / (dataset_train.labels == 1).sum()
         setattr(criterion, 'pos_weight', torch.tensor(weight))
         logger.info("Balanced weigths for BCE with logits loss (weight: " + str(np.round(weight, 4)) + ").")
 
@@ -229,5 +234,3 @@ if __name__ == "__main__":
     config = ConfigParser.from_args(args, options=options, setting="train")
     main(config_dict=config)
 
-# args.add_argument('-d', '--device', default=None, type=str,
-#                   help='indices of GPUs to enable (default: all)')
