@@ -2,6 +2,7 @@ import argparse
 import inspect
 import os
 import sys
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -20,6 +21,10 @@ import dmultipit.model.metric as module_metric
 from dmultipit.parse_config import ConfigParser
 from dmultipit.testing import Testing
 from dmultipit.utils import prepare_device
+
+# filter RuntimeWarnings that appear when dealing with PowerTransformer within the pre-processing step for radiomic
+# MSKCC data. We recommend not using this line at first as it may hide other issues.
+# warnings.simplefilter(action="ignore", category=RuntimeWarning)
 
 
 def main(config_dict):
@@ -73,12 +78,13 @@ def main(config_dict):
 
     *list_raw_data, labels = config_dict.init_ftn(["test_data", "loader"],
                                                   module_data,
-                                                  order=config_dict["architecture"]['order'])()
-    dataset = get_dataset(
+                                                  order=config_dict["architecture"]['order'],
+                                                  keep_unlabelled=False)()
+    dataset, bool_mask_missing_test = get_dataset(
         labels=labels,
         list_raw_data=list_raw_data,
         dataset_name=config_dict["test_data"]["dataset"],
-        list_unimodal_processings=training_dataset.list_processings,
+        list_unimodal_processings=training_dataset.list_unimodal_processings,
         multimodal_processing=training_dataset.multimodal_processing,
         indexes=np.arange(len(labels)),
         drop_modas=False,
@@ -124,30 +130,43 @@ def main(config_dict):
                  collect_modalitypred=config_dict["testing"]["save_modality_predictions"]
                  )
 
-    # 6.2 save modality predictions:
+    # 6.2 save modality predictions (use NaN values for samples with only missing modalities (bool_mask_missing_test))
     if config_dict["testing"]["save_modality_predictions"]:
-        df_modalitypreds = pd.DataFrame(torch.vstack(testing.modalitypreds).numpy(),
-                                        index=dataset.sample_names,
-                                        columns=config_dict["architecture"]["order"])
+        df_modalitypreds = pd.DataFrame(index=labels.index, columns=config_dict["architecture"]["order"])
+        df_modalitypreds.loc[labels[~bool_mask_missing_test].index] = torch.vstack(testing.modalitypreds).numpy()
+        df_modalitypreds["label"] = labels.copy()
         df_modalitypreds.to_csv(config_dict.save_dir / "modality_predictions.csv")
         del df_modalitypreds
 
-    # 6.3 save attentions
+    # 6.3 save attentions (use NaN values for samples with only missing modalities (bool_mask_missing_test))
     if config_dict["testing"]["save_attentions"]:
-        df_att = pd.DataFrame(
-            torch.vstack(testing.attentions).numpy(),
-            index=dataset.sample_names,
-            columns=config_dict["architecture"]["order"],
-        )
+        df_att = pd.DataFrame(index=labels.index, columns=config_dict["architecture"]["order"])
+        df_att.loc[labels[~bool_mask_missing_test].index] = torch.vstack(testing.attentions).numpy()
+        df_att["label"] = labels.copy()
         df_att.to_csv(config_dict.save_dir / "attentions.csv")
         del df_att
 
-    # 6.4 save outputs
-    df_out = pd.DataFrame(
-        torch.hstack((testing.outputs.view(-1, 1),  torch.sigmoid(testing.outputs.view(-1, 1)))),
-        columns=["outputs", "probas"],
-        index=dataset.sample_names,
-    )
+    # 6.4 save outputs (use NaN values for samples with only missing modalities (bool_mask_missing_test))
+    # distinguish cases where the sigmoid function is included in the model or not (to compute "probas")
+    df_out = pd.DataFrame(index=labels.index, columns=["outputs", "probas"])
+    if config_dict["architecture"]["intermediate_fusion"]:
+        if config_dict["architecture"]["predictor"]["args"]["final_activation"] == "sigmoid":
+            temp = torch.hstack((testing.outputs.view(-1, 1),  testing.outputs.view(-1, 1)))
+        else:
+            temp = torch.hstack((testing.outputs.view(-1, 1), torch.sigmoid(testing.outputs.view(-1, 1))))
+    else:
+        only_sigmoid = True
+        for moda in config_dict["architecture"]["order"]:
+            if config_dict["architecture"]["modality_embeddings"][moda]["args"]["final_activation"] != "sigmoid":
+                only_sigmoid = False
+                break
+        if only_sigmoid:
+            temp = torch.hstack((testing.outputs.view(-1, 1), testing.outputs.view(-1, 1)))
+        else:
+            temp = torch.hstack((testing.outputs.view(-1, 1), torch.sigmoid(testing.outputs.view(-1, 1))))
+
+    df_out.loc[labels[~bool_mask_missing_test].index] = temp
+    df_out["label"] = labels.copy()
     df_out.to_csv(config_dict.save_dir / "predictions.csv")
     del df_out
 
@@ -171,6 +190,3 @@ if __name__ == "__main__":
 
     config = ConfigParser.from_args(args, setting="test")
     main(config_dict=config)
-
-# args.add_argument('-d', '--device', default=None, type=str,
-#                   help='indices of GPUs to enable (default: all)')
