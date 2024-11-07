@@ -209,7 +209,7 @@ def load_MSKCC_multimoda(
     omics_features,
     order,
     outcome,
-    keep_unlabelled,
+    keep_unlabelled=False,
 ):
     """
     Loader for MSKCC data to reproduce experiments from in Vanguri et al. (https://doi.org/10.1038/s43018-022-00416-8)
