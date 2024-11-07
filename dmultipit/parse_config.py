@@ -23,8 +23,7 @@ class ConfigParser:
 
     modification: Dict keychain:value, specifying position values to be replaced from config dict.
 
-    setting: string in ['train', 'test']
-
+    setting: string in ['train', 'test', 'cross_val']
     """
 
     def __init__(self, config, resume=None, modification=None, setting="train"):
@@ -33,16 +32,16 @@ class ConfigParser:
         self.resume = resume
         save_dir = Path(self.config["save_dir"])
 
-        exper_name = self.config["name"]
+        model_name = self.config["name"]
 
         # set save_dir where trained model and log will be saved.
         if setting == "train":
 
             if self.config["run_id"] is None:  # use timestamp as default run-id
-                self.config["run_id"] = datetime.now().strftime(r"%m%d_%H%M%S")
+                self.config["run_id"] = "training_" + datetime.now().strftime(r"%m%d_%H%M%S")
 
-            self._save_dir = save_dir / "models" / exper_name / self.config["run_id"]
-            self._log_dir = save_dir / "log" / exper_name / self.config["run_id"]
+            self._save_dir = save_dir / "train" / "models" / model_name / self.config["run_id"]
+            self._log_dir = save_dir / "train" / "log" / model_name / self.config["run_id"]
 
             # make directory for saving checkpoints and log.
             exist_ok = self.config["run_id"] == ""
@@ -54,27 +53,25 @@ class ConfigParser:
         elif setting == "test":
 
             if self.config["exp_id"] is None:  # use timestamp as default run-id
-                self.config["exp_id"] = "exp_" + datetime.now().strftime(r"%m%d_%H%M%S")
+                self.config["exp_id"] = "test_" + datetime.now().strftime(r"%m%d_%H%M%S")
 
-            self._save_dir = (
-                save_dir
-                / "results"
-                / exper_name
-                / self.config["run_id"]
-                / self.config["exp_id"]
-            )
+            self._save_dir = save_dir / "test" / "saved" / model_name / self.config["run_id"] / self.config["exp_id"]
+            self._log_dir = save_dir / "test" / "log" / model_name / self.config["run_id"] / self.config["exp_id"]
+
             self.save_dir.mkdir(parents=True, exist_ok=True)
+            self.log_dir.mkdir(parents=True, exist_ok=True)
 
-            logging.basicConfig(level=logging.INFO)
+            setup_logging(self.log_dir)
+            # logging.basicConfig(level=logging.INFO)
 
         elif setting == "cross_val":
 
             if self.config["exp_id"] is None:  # use timestamp as default run-id
-                self.config["exp_id"] = "exp_" + datetime.now().strftime(r"%m%d_%H%M%S")
+                self.config["exp_id"] = "cv_" + datetime.now().strftime(r"%m%d_%H%M%S")
 
-            self._log_dir = save_dir / "log" / exper_name / self.config["exp_id"]
-            self._save_dir = save_dir / "results" / exper_name / self.config["exp_id"]
-            self.model_dir = save_dir / "models" / exper_name / self.config["exp_id"]
+            self._log_dir = save_dir / "cross-val" / "log" / model_name / self.config["exp_id"]
+            self._save_dir = save_dir / "cross-val" / "saved" / model_name / self.config["exp_id"]
+            self.model_dir = save_dir / "cross_val" / "models" / model_name / self.config["exp_id"]
 
             self.save_dir.mkdir(parents=True, exist_ok=True)
             self.log_dir.mkdir(parents=True, exist_ok=True)
@@ -86,7 +83,7 @@ class ConfigParser:
             raise ValueError("setting should be either 'train', 'test' or 'cross_val'")
 
         # save updated config file to the checkpoint dir
-        write_yaml(self.config, self.save_dir / "config.yaml")
+        write_yaml(self.config, self.log_dir / "config_init.yaml")
 
         # set log_levels
         self.log_levels = {0: logging.WARNING, 1: logging.INFO, 2: logging.DEBUG}
