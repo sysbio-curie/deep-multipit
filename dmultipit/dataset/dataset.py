@@ -97,8 +97,8 @@ class TIPITDataset(MultiModalDataset):
         """
         if (len(params) > 1) or ("selection" not in params.keys()):
             raise ValueError("Only multimodal selection is currently implemented")
-        multimodal_transformer = CustomSelection(**params["selection"]).fit(X, y, modalities=modalities
-                                                                            )
+        multimodal_transformer = CustomSelection(**params["selection"]).fit(X, y, modalities=modalities)
+
         return multimodal_transformer
 
 
@@ -161,8 +161,9 @@ class MSKCCDataset(MultiModalDataset):
             else:
                 list_raw_data = list_raw_data[:radiomics] + list(radiomics_data) + list_raw_data[radiomics + 1:]
         else:
-            warnings.warn("radiomics was set to None. We will therefore assume that no radiomic data was included in"
-                          "the list of raw data (no specific radiomic transformation will be applied).")
+            self.rad_transform = None
+            # warnings.warn("radiomics was set to None. We will therefore assume that no radiomic data was included in"
+            #               "the list of raw data (no specific radiomic transformation will be applied).")
 
         # Initialize MultiModalDataset with the updated list of raw data (i.e., transformed radiomics included)
         super(MSKCCDataset, self).__init__(
