@@ -31,12 +31,13 @@ def main(config_dict):
     logger = config_dict.get_logger("test")
 
     # 1. Load the test dataset (apply the preprocessing of the training dataset if any)
-    *list_raw_data_train, labels_train = config_dict.init_ftn(
+    dict_raw_data_train, labels_train = config_dict.init_ftn(
         ["training_data", "loader"],
         module_data,
         order=config_dict["architecture"]['order'],
         keep_unlabelled=config_dict["training"]["pseudo_labelling"]
     )()
+    list_raw_data_train = tuple(dict_raw_data_train.values())
 
     # deal with train-validation split if any
     train_index = np.arange(len(labels_train))
@@ -55,6 +56,12 @@ def main(config_dict):
             except ValueError:
                 pass
         radiomics = int(np.min(radiomics_list)) if len(radiomics_list) > 0 else None
+    if (rad_transform is not None) and (radiomics is not None):
+        temp = [item.split('_')[-1] for item in config_dict["architecture"]["order"]
+                if item.split('_')[0] == 'radiomics']
+        if len(set(temp) ^ set(rad_transform["lesion_type"])) > 0:
+            raise ValueError("Lesion types specified in rad_transform parameters and those specified in the"
+                             " architecture/order parameter are different.")
 
     training_dataset, *_ = train_test_split(
         train_index=train_index,
@@ -76,10 +83,12 @@ def main(config_dict):
         radiomics=radiomics
     )
 
-    *list_raw_data, labels = config_dict.init_ftn(["test_data", "loader"],
-                                                  module_data,
-                                                  order=config_dict["architecture"]['order'],
-                                                  keep_unlabelled=False)()
+    dict_raw_data, labels = config_dict.init_ftn(["test_data", "loader"],
+                                                 module_data,
+                                                 order=config_dict["architecture"]['order'],
+                                                 keep_unlabelled=False)()
+    list_raw_data = tuple(dict_raw_data.values())
+
     dataset, bool_mask_missing_test = get_dataset(
         labels=labels,
         list_raw_data=list_raw_data,

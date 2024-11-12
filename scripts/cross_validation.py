@@ -55,11 +55,11 @@ def main(config_dict):
             names.append("+".join([list_modas[c] for c in comb]))
 
     # 1. Initialize data set which will be used for cross validation
-    *list_raw_data, labels = config_dict.init_ftn(["cross_val_data", "loader"],
-                                                  module_data,
-                                                  order=config_dict["architecture"]["order"],
-                                                  keep_unlabelled=False,
-                                                  )()
+    dict_raw_data, labels = config_dict.init_ftn(["cross_val_data", "loader"],
+                                                 module_data,
+                                                 order=config_dict["architecture"]["order"],
+                                                 keep_unlabelled=False,
+                                                 )()
 
     # 2. Define function that will be parallelized
     def _fun_parallel(r, disable_infos):
@@ -97,7 +97,18 @@ def main(config_dict):
                 config_dict["cross_val_data"]["drop_modalities"] = drop_modas
 
             config_dict["architecture"]["order"] = [list_modas[d] for d in ind]
-            list_data = [list_raw_data[d] for d in ind]
+            if config_dict["MSKCC"]:
+                list_data = []
+                rad = False
+                for mod in config_dict["architecture"]["order"]:
+                    if mod.split("_")[0] == "radiomics":
+                        if not rad:
+                            list_data.append(dict_raw_data["radiomics"])
+                            rad = True
+                    else:
+                        list_data.append(dict_raw_data[mod])
+            else:
+                list_data = [dict_raw_data[mod] for mod in config_dict["architecture"]["order"]]
 
             # Get function handles of loss and metrics for training and test
             training_criterion = config_dict.init_obj(["training", "loss"], module_loss)
@@ -146,17 +157,16 @@ def main(config_dict):
 
     # 3. Parallel loop
     temp = ((config_dict["parallelization"]["n_jobs_repeats"] is not None)
-                     and (config_dict["parallelization"]["n_jobs_repeats"] > 1))
+            and (config_dict["parallelization"]["n_jobs_repeats"] > 1))
 
     parallel = ProgressParallel(n_jobs=config_dict["parallelization"]["n_jobs_repeats"],
                                 total=config_dict["cross_val"]["n_repeats"])
 
-    outputs = parallel(delayed(_fun_parallel)(r, disable_infos=temp)
-                       for r in range(config_dict["cross_val"]["n_repeats"])
-                       )
+    list_preds = parallel(delayed(_fun_parallel)(r, disable_infos=temp)
+                          for r in range(config_dict["cross_val"]["n_repeats"])
+                          )
 
     # 4. Save results (i.e., collected predictions over the repeats of the cv scheme)
-    list_preds = [out[0] for out in outputs]
     pd.concat(list_preds, axis=0).to_csv(config_dict.save_dir / "predictions.csv")
 
     return
@@ -179,13 +189,14 @@ def _train_test_cv(
     radiomics, rad_transform = None, None
     if config_dict["MSKCC"]:
         rad_transform = config_dict["radiomics_transform"]
-        radiomics_list = []
-        for item in ["radiomics_PL", "radiomics_LN", "radiomics_PC"]:
-            try:
-                radiomics_list.append(config_dict["architecture"]["order"].index(item))
-            except ValueError:
-                pass
-        radiomics = int(np.min(radiomics_list)) if len(radiomics_list) > 0 else None
+        radiomics_list = list(sorted(set(config_dict["architecture"]["order"])
+                                     & {"radiomics_PL", "radiomics_LN", "radiomics_PC"},
+                                     key=config_dict["architecture"]["order"].index))
+        radiomics_list_ind = [config_dict["architecture"]["order"].index(item) for item in radiomics_list]
+        radiomics_list = [item.split("_")[-1] for item in radiomics_list]
+
+        radiomics = int(np.min(radiomics_list_ind)) if len(radiomics_list) > 0 else None
+        rad_transform["lesion_type"] = radiomics_list
 
     # Initialize train, test and validation datasets
     (training_data,

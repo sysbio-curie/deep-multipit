@@ -47,12 +47,13 @@ def main(config_dict):
     # whether to perform pseudo-labelling or not
     keep_unlabelled = config_dict["training"]["pseudo_labelling"]
 
-    *list_raw_data, labels = config_dict.init_ftn(
+    dict_raw_data, labels = config_dict.init_ftn(
         ["training_data", "loader"],
         module_data,
         order=config_dict["architecture"]["order"],
         keep_unlabelled=keep_unlabelled,
     )()
+    list_raw_data = tuple(dict_raw_data.values())
 
     # 2. Split data into training and validation
     val_index = config_dict["training_data"]["val_index"]  # specified validation indexes
@@ -86,6 +87,12 @@ def main(config_dict):
             except ValueError:
                 pass
         radiomics = int(np.min(radiomics_list)) if len(radiomics_list) > 0 else None
+    if (rad_transform is not None) and (radiomics is not None):
+        temp = [item.split('_')[-1] for item in config_dict["architecture"]["order"]
+                if item.split('_')[0] == 'radiomics']
+        if len(set(temp) ^ set(rad_transform["lesion_type"])) > 0:
+            raise ValueError("Lesion types specified in rad_transform parameters and those specified in the"
+                             " architecture/order parameter are different.")
 
     dataset_train, dataset_train_unlabelled, dataset_val, _ = train_test_split(
         train_index=train_index,

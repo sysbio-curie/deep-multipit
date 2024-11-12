@@ -1,3 +1,4 @@
+from collections import OrderedDict
 import pandas as pd
 import numpy as np
 from sksurv.util import Surv
@@ -74,9 +75,14 @@ def load_TIPIT_multimoda(
 
     Returns
     -------
-        Tuple of pandas dataframes and sksruv.utils.Surv
-            Loaded modalities (ordered according to *order* parameter), binary target, and survival data (if
-            *return_survival* is not None).
+    datasets: OrderedDict
+        Loaded modalities (i.e., pandas dataframes) ordered according to *order* parameter
+
+    target: pandas dataframe
+        Loaded binary target.
+
+    target_survival: sksruv.utils.Surv
+        Survival data, if *return_survival* is not None.
     """
     # 1. Load raw data and concatenate them
     assert clinical_file is not None, "clinical data should always be provided"
@@ -153,48 +159,50 @@ def load_TIPIT_multimoda(
         raise ValueError("outcome can only be 'OS','PFS' or 'RECIST'")
 
     # 3. Select specific features for each modality
-    datasets = {key: None for key in ["clinicals", "radiomics", "pathomics", "RNA"]}
+    datasets = OrderedDict()
+    for modality in order:
+        datasets[modality] = None
+
+    if 'clinicals' in order:
+        if clinical_features is not None:
+            datasets["clinicals"] = df_total[clinical_features]
+        else:
+            datasets["clinicals"] = df_total[df_clinicals.columns].drop(
+                columns=["OS", "PFS", "Statut Vital", "Progression", "Best response"],
+                errors="ignore",
+            )
+
+    if "radiomics" in order:
+        assert df_radiomics is not None, ("order specifies radiomic modality but the input file for loading the raw"
+                                          " radiomic data was not given ")
+        datasets["radiomics"] = df_total[radiomic_features] if radiomic_features is not None \
+            else df_total[df_radiomics.columns]
+
+    if "pathomics" in order:
+        assert df_radiomics is not None, ("order specifies pathomic modality but the input file for loading the raw"
+                                          " pathomic data was not given ")
+        datasets["pathomics"] = df_total[pathomics_features] if pathomics_features is not None \
+            else df_total[df_pathomics.columns]
+
+    if "RNA" in order:
+        assert df_RNA is not None, ("order specifies RNA modality but the input file for loading the raw"
+                                    " pathomic RNA was not given ")
+        datasets["RNA"] = df_total[rna_features] if rna_features is not None else df_total[df_RNA.columns]
 
     if return_survival == "OS":
         target_survival = Surv().from_arrays(event=(1 * (df_total["Statut Vital"] == "Decede")).values,
                                              time=df_total["OS"].values,
                                              )
+        return datasets, target, target_survival
     elif return_survival == "PFS":
         target_survival = Surv().from_arrays(event=(1 * (df_total["Progression"] == "Yes")).values,
                                              time=df_total["PFS"].values,
                                              )
+        return datasets, target, target_survival
+    elif return_survival is not None:
+        raise ValueError("return_survival only takes values in 'OS', 'PFS', or None")
 
-    if clinical_features is not None:
-        datasets["clinicals"] = df_total[clinical_features]
-    else:
-        datasets["clinicals"] = df_total[df_clinicals.columns].drop(
-            columns=["OS", "PFS", "Statut Vital", "Progression", "Best response"],
-            errors="ignore",
-        )
-
-    if df_radiomics is not None:
-        datasets["radiomics"] = df_total[radiomic_features] if radiomic_features is not None \
-            else df_total[df_radiomics.columns]
-    if df_pathomics is not None:
-        datasets["pathomics"] = df_total[pathomics_features] if pathomics_features is not None \
-            else df_total[df_pathomics.columns]
-
-    if df_RNA is not None:
-        datasets["RNA"] = df_total[rna_features] if rna_features is not None else df_total[df_RNA.columns]
-
-    # 4. Return each dataset and the target in the right order
-    output = tuple()
-    for modality in order:
-        assert datasets[modality] is not None, (
-            "order specifies a modality but the input file for loading the raw "
-            "data is not given "
-        )
-        output = output + (datasets[modality],)
-
-    if return_survival is not None:
-        return output + (target, target_survival)
-    else:
-        return output + (target,)
+    return datasets, target
 
 
 def load_MSKCC_multimoda(
@@ -267,8 +275,11 @@ def load_MSKCC_multimoda(
 
     Returns
     -------
-        Tuple of pandas dataframes
-            Loaded modalities (ordered according to *order* parameter) and binary target
+    datasets: OrderedDict
+        Loaded modalities (i.e., pandas dataframes) ordered according to *order* parameter
+
+    target: pandas dataframe
+        Loaded binary target.
 
     References
     ----------
@@ -318,45 +329,44 @@ def load_MSKCC_multimoda(
         raise ValueError("outcome can only be 'OS','PFS' or 'RECIST'")
 
     # 3. Select specific features for each modality
-    datasets = {key: None for key in ["clinicals", "radiomics", "pathomics", "omics", "pdl1"]}
-
-    if clinical_features is not None:
-        datasets["clinicals"] = df_total[clinical_features]
-    else:
-        datasets["clinicals"] = df_total[df_clinicals.columns].drop(
-            columns=["os_int", "pfs", "label", "pfs_censor"], errors="ignore"
-        )
-
-    # radiomics data set consists in a tuple of radiomics data + index from total data set
-    if df_radiomics is not None:
-        datasets["radiomics"] = (df_radiomics[radiomic_features], df_total.index) if radiomic_features is not None \
-                                else (df_radiomics, df_total.index)
-    if df_pathomics is not None:
-        datasets["pathomics"] = df_total[pathomics_features] if pathomics_features is not None \
-                                else df_total[df_pathomics.columns]
-    if df_omics is not None:
-        datasets["omics"] = df_total[omics_features] if omics_features is not None else df_total[df_omics.columns]
-
-    if df_pdl1 is not None:
-        datasets["pdl1"] = df_total[df_pdl1.columns]
-
-    # 4. Return each dataset and the target in the right order
-    output = tuple()
+    datasets = OrderedDict()
     rad = False
     for modality in order:
         if modality.split("_")[0] == "radiomics":
             if not rad:
-                assert datasets["radiomics"] is not None, (
-                    "order specifies a modality but the input file for loading "
-                    "the raw data is not given "
-                )
-                output = output + (datasets["radiomics"],)
+                datasets["radiomics"] = None
                 rad = True
         else:
-            assert datasets[modality] is not None, (
-                "order specifies a modality but the input file for loading the raw "
-                "data is not given "
-            )
-            output = output + (datasets[modality],)
+            datasets[modality] = None
 
-    return output + (target,)
+    if "clinicals" in datasets.keys():
+        if clinical_features is not None:
+            datasets["clinicals"] = df_total[clinical_features]
+        else:
+            datasets["clinicals"] = df_total[df_clinicals.columns].drop(
+                columns=["os_int", "pfs", "label", "pfs_censor"], errors="ignore"
+            )
+
+    if "radiomics" in datasets.keys():
+        assert df_radiomics is not None, ("order specifies radiomic modality but the input file for loading the raw"
+                                          " radiomic data was not given ")
+        datasets["radiomics"] = (df_radiomics[radiomic_features], df_total.index) if radiomic_features is not None \
+            else (df_radiomics, df_total.index)
+
+    if "pathomics" in datasets.keys():
+        assert df_pathomics is not None, ("order specifies pathomic modality but the input file for loading the raw"
+                                          " pathomic data was not given ")
+        datasets["pathomics"] = df_total[pathomics_features] if pathomics_features is not None \
+            else df_total[df_pathomics.columns]
+
+    if "omics" in datasets.keys():
+        assert df_omics is not None, ("order specifies omic modality but the input file for loading the raw"
+                                      " omic data was not given ")
+        datasets["omics"] = df_total[omics_features] if omics_features is not None else df_total[df_omics.columns]
+
+    if "pdl1" in datasets.keys():
+        assert df_pdl1 is not None, ("order specifies pdl1 modality but the input file for loading the raw"
+                                     " pdl1 data was not given ")
+        datasets["pdl1"] = df_total[df_pdl1.columns]
+
+    return datasets, target
