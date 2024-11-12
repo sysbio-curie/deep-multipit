@@ -1,0 +1,149 @@
+save_dir: "../results/MSKCC/" #directory to save all cross-validation results
+exp_id: null #specific id to refer to the cv experiment (saving results). If null timestamp will be used.
+n_gpu: 0 #number of GPUs (if 0 the model will be trained and tested on CPU)
+
+#define number of jobs to run in parallel (useful when there are several repeats of the cv scheme!)
+parallelization:
+  n_jobs_repeats: 1
+
+#define cross-validation data
+cross_val_data:
+
+  # Define a train-validation split if needed
+  validation_split: null # 0.15
+
+  # 1. Load raw data from your files
+  loader:
+    type: "load_MSKCC_multimoda"
+    args:
+      clinical_file: "../data/MSKCC/clinicals.csv"
+      radiomics_file: "../data/MSKCC/radiomics.csv"
+      pathomics_file: "../data/MSKCC/pathomics.csv"
+      omics_file: "../data/MSKCC/omics.csv"
+      pdl1_file: "../data/MSKCC/pdl1.csv"
+
+      clinical_features: ['age', 'pack_years', 'ecog', 'albumin', 'dnlr', 'brain_mets', 'liver_mets', 'tumor_burden',
+                          'therapy_line', 'recieves_combo_therapy', 'site_lung', 'recieves_pdl1_therapy', 'hist_adeno']
+      radiomic_features:
+      omics_features:
+      pathomics_features:
+      outcome: 'RECIST'
+
+  # 2. Build a dataset from the loaded raw data
+  dataset: "MSKCCDataset"
+
+  # processing steps to apply on the different data modalities
+  processing:
+
+    radiomics_PL:
+      scaler:
+        strategy: 'robust'
+
+    radiomics_LN:
+      scaler:
+        strategy: 'robust'
+
+    radiomics_PC:
+      scaler:
+        strategy: 'robust'
+
+    pathomics:
+      scaler:
+        strategy: 'robust'
+
+    omics:
+      scaler:
+        strategy: 'robust'
+
+    pdl1:
+      scaler:
+        strategy: 'robust'
+
+    clinicals:
+      imputer:
+        numericals: [1]
+        categoricals: [10]
+      scaler:
+        strategy: 'robust'
+
+    #multimodal processing step (if any), such as dmultipit.dataset.transformers.CustomSelection
+    multimodal:
+
+   # 3. Define data loader with or without oversampling and data augmentation
+  sampler: False #whether to use oversampling for the minority class during training (only for classification !)
+  drop_modalities: False #whether to use data augmentation during training (dropping randomly modalties)
+
+  training_data_loader:
+    batch_size: 256
+    shuffle: true
+    num_workers: 0
+
+#define specific radiomic transformer for MSKCC data (see dmultipit.dataset.transformers.MSKCCRadiomicsTransform)
+#Note: lesion_type argument and order argument (in the config_architecture file) shoud specify the same radiomic lesion types
+radiomics_transform:
+  lesion_type: ['PC', 'LN', 'PL']
+  robustness_cutoff: 0.15
+  outlier_cutoff: 6
+  l1_C: 0.1
+  aggregation: 'mean'
+
+#define cross-validation settings
+cross_val:
+  n_repeats: 1 #number of repetitions for cross validation scheme
+  seed: 3 #fix seed for reproducibility
+  strategy: "StratifiedKFold" #cross-validation strategy
+  n_splits: 10 #number of folds
+
+#define training settings
+training:
+
+  epochs: 125 #number of training epochs
+
+  #define training loss (losses available in dmultipit.model.loss)
+  loss:
+    type: "BCELogitLoss"
+    args:
+  l2_penalty: 0.001
+  attention_penalty: null
+  balanced_weights: True
+  metrics: [ "balanced_accuracy", "roc_auc" ]
+
+  #define training optimizer
+  optimizer:
+    type: "Adam"
+    args:
+      lr: 0.01
+#      weight_decay: 0.005
+
+  #define learning rate scheduler (optional)
+  lr_scheduler:
+    type:
+
+  #define monitoring/checkpoint parameters
+  save_period: null #if not null a model checkpoint will be saved every *save_period* epochs
+  save_best_only: null  #if True only the best model according to the monitoring function is saved as checkpoint
+  print_period: null #if not null the model performance metrics will be printed every *print_period* epochs
+  verbosity: 1 #control the level of information
+  tensorboard: false #allow tensorboad visualization
+  monitor: "off" #define monitoring strategy
+  ema_alpha: 0.9 #parameter for the exponential moving average (ema) smoothing algortihm
+  early_stop: 50 #number of epochs to wait for model improvement before stopping (no early stopping if 0)
+
+  #define pseudo-labelling strategies (not used for MSKCC data !)
+  pseudo_labelling: False
+
+  unlabelled_loss:
+    type:
+    args:
+
+  unlabelled_scheduler:
+    type:
+
+#define test settings
+testing:
+  verbosity: 0
+  loss:
+    type: "BCELogitLoss"
+    args:
+  metrics: ["balanced_accuracy_with_logit", "roc_auc"]
+

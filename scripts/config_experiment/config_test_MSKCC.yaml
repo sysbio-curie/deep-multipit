@@ -1,0 +1,40 @@
+save_dir: "../results/MSKCC/" #directory to save all testing results
+exp_id: null #specific id to refer to the test experiment (saving results). If null timestamp will be used.
+n_gpu: 0 #number of GPUs to test the model (if 0 the model will be tested on CPU)
+
+#define test data
+test_data:
+
+  # 1. Load raw data from your files
+  loader:
+    type: "load_MSKCC_multimoda"
+    args:
+      clinical_file: "../data/MSKCC/clinicals.csv"
+      radiomics_file: "../data/MSKCC/radiomics.csv"
+      pathomics_file: "../data/MSKCC/pathomics.csv"
+      omics_file: "../data/MSKCC/omics.csv"
+      pdl1_file: "../data/MSKCC/pdl1.csv"
+
+      clinical_features: ['age', 'pack_years', 'ecog', 'albumin', 'dnlr', 'brain_mets', 'liver_mets', 'tumor_burden',
+                          'therapy_line', 'recieves_combo_therapy', 'site_lung', 'recieves_pdl1_therapy', 'hist_adeno']
+      radiomic_features:
+      omics_features:
+      pathomics_features:
+      outcome: 'RECIST'
+
+  # 2. Build a dataset from the loaded raw data
+  dataset: "MSKCCDataset"
+
+#define testing settings
+testing:
+
+  #define test loss
+  loss:
+    type: "BCELogitLoss" # "BCELoss"
+    args:
+  metrics: ["balanced_accuracy_with_logit", "roc_auc"]
+
+  verbosity: 1
+  save_attentions: true #whether to save attention weights for each test sample
+  save_modality_predictions: true #whether to save unimodal predictions for each modality and each sample
+

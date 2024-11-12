@@ -1,0 +1,88 @@
+name: MSKCC_latefus #model name (all results associated with this model will be saved in directories with this name)
+MSKCC: True #whether the data to consider are similar to or the same as the one from Vanguri et al. (i.e., specific radiomic transform).
+
+#Note: The function which builds the model from the configuration file is available in scripts/_utils.build_model
+
+architecture:
+
+  #whether to use intermediate or late fusion strategies
+  intermediate_fusion: False
+
+  #modalities to include in the model, in that specific order
+  order: ['pdl1', 'pathomics', 'radiomics_PC', 'radiomics_LN', 'radiomics_PL', 'omics']
+
+  #embedder for each modality (embedding models are available in dmultipit.model.embeddings)
+  modality_embeddings:
+
+    radiomics_PC:
+      type: "ModalityEmbedding"
+      args:
+        dim_input:
+        h_sizes: []
+        p_dropout: 0
+        dim_output: 1
+        final_activation: "tanh"
+
+    radiomics_PL:
+      type: "ModalityEmbedding"
+      args:
+        dim_input:
+        h_sizes: []
+        p_dropout: 0
+        dim_output: 1
+        final_activation: "tanh"
+
+    radiomics_LN:
+      type: "ModalityEmbedding"
+      args:
+        dim_input:
+        h_sizes: []
+        p_dropout: 0
+        dim_output: 1
+        final_activation: "tanh"
+
+    pathomics:
+      type: "ModalityEmbedding"
+      args:
+        dim_input: 18
+        h_sizes: []
+        p_dropout: 0
+        dim_output: 1
+        final_activation: "tanh"
+
+    omics:
+      type: "ModalityEmbedding"
+      args:
+        dim_input: 11
+        h_sizes: []
+        p_dropout: 0
+        dim_output: 1
+        final_activation: "tanh"
+
+    pdl1:
+      type: "ModalityEmbedding"
+      args:
+        dim_input: 1
+        h_sizes: []
+        p_dropout: 0
+        dim_output: 1
+        final_activation: "tanh"
+
+    clinicals:
+      type: "ModalityEmbedding"
+      args:
+        dim_input: 13
+        h_sizes: []
+        p_dropout: 0
+        dim_output: 1
+        final_activation: "tanh"
+
+  #attention model (attention models are available in dmultipit.model.attentions)
+  attention:
+    type: "MSKCCAttention"
+    args:
+
+  #predictor to obtain the final prediction from the multimodal embedding (not used for late fusion strategies !)
+  predictor:
+    type:
+    args:

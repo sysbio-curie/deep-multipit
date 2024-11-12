@@ -1,0 +1,135 @@
+save_dir: "../results/MSKCC/" #directory to save all training loggings and checkpoints
+run_id: null #specific id to refer to the training experiment (saving results). If null timestamp will be used.
+n_gpu: 0 #number of GPUs to train the model (if 0 the model will be trained on CPU)
+
+#define training data
+training_data:
+
+  # 1. define a train-validation split if needed
+  validation_split: 0.2
+  val_index:
+
+  # 2. Load raw data from your files
+  loader:
+    type: "load_MSKCC_multimoda"
+    args:
+      clinical_file: "../data/MSKCC/clinicals.csv"
+      radiomics_file: "../data/MSKCC/radiomics.csv"
+      pathomics_file: "../data/MSKCC/pathomics.csv"
+      omics_file: "../data/MSKCC/omics.csv"
+      pdl1_file: "../data/MSKCC/pdl1.csv"
+
+      clinical_features: ['age', 'pack_years', 'ecog', 'albumin', 'dnlr', 'brain_mets', 'liver_mets', 'tumor_burden',
+                          'therapy_line', 'recieves_combo_therapy', 'site_lung', 'recieves_pdl1_therapy', 'hist_adeno']
+      radiomic_features:
+      omics_features:
+      pathomics_features:
+      outcome: 'RECIST'
+
+  # 3. Build a dataset from the loaded raw data
+  dataset: "MSKCCDataset"
+
+  #processing steps to apply on the different data modalities
+  processing:
+
+    radiomics_PL:
+      scaler:
+        strategy: 'robust'
+
+    radiomics_LN:
+      scaler:
+        strategy: 'robust'
+
+    radiomics_PC:
+      scaler:
+        strategy: 'robust'
+
+    pathomics:
+      scaler:
+        strategy: 'robust'
+
+    omics:
+      scaler:
+        strategy: 'robust'
+
+    pdl1:
+      scaler:
+        strategy: 'robust'
+
+    clinicals:
+      imputer:
+        numericals: [1]
+        categoricals: [10]
+      scaler:
+        strategy: 'robust'
+
+    #multimodal processing step (if any), such as dmultipit.dataset.transformers.CustomSelection
+    multimodal:
+
+  # 4. Define data loader with or without oversampling and data augmentation
+  sampler: False #whether to use oversampling for the minority class during training (only for classification !)
+  drop_modalities: False #whether to use data augmentation during training (dropping randomly modalties)
+
+  data_loader:
+    batch_size: 32
+    shuffle: false
+    num_workers: 0
+
+#define specific radiomic transformer for MSKCC data (see dmultipit.dataset.transformers.MSKCCRadiomicsTransform)
+#Note: lesion_type argument and order argument (in the config_architecture file) shoud specify the same radiomic lesion types
+radiomics_transform:
+  lesion_type: ['PC', 'LN', 'PL']
+  robustness_cutoff: 0.15
+  outlier_cutoff: 6
+  l1_C: 0.1
+  aggregation: 'mean'
+
+#define training settings
+training:
+
+  seed: 3 #seed for reproducibility
+  epochs: 125 #number of training epochs
+
+  #define training loss (losses available in dmultipit.model.loss)
+  loss:
+    type: "BCELogitLoss"
+    args:
+  l2_penalty: 0.001 #regularization strength for l2 penalty (no penalty if null)
+  attention_penalty: null #regularization strength for attention penlaty (see attention_norm attribute from the attention model)
+  balanced_weights: True #whether to use balanced class weights for binary classification
+  metrics: [ "balanced_accuracy_with_logit", "roc_auc" ] #metrics computed at each epoch (for training and validation if a validation set is specified)
+
+  #define training optimizer
+  optimizer:
+    type: "Adam"
+    args:
+      lr: 0.01
+  #    weight_decay: 0.005
+  #     momentum: 0.9
+
+  #define learning rate scheduler (optional)
+  lr_scheduler:
+    type:
+
+  #define monitoring/checkpoint parameters
+  save_period: null #if not null a model checkpoint will be saved every *save_period* epochs
+  save_best_only: True #if True only the best model according to the monitoring function is saved as checkpoint
+  print_period: 2 #if not null the model performance metrics will be printed every *print_period* epochs
+  verbosity: 1 #control the level of information
+  tensorboard: true #allow tensorboad visualization
+  monitor: "ema_min val_loss" #define the monitoring algorithm (first word) and the monitoring metric (second word)
+                              #the monitoring metric should correspond to the metrics specified above or "loss" and
+                              #the "val" prefix can be used to indicate that it should be computed on the validation set
+                              #For the algorithm, "min" indicates that the best model corresponds to the minimum value
+  ema_alpha: 0.6 #parameter for the exponential moving average (ema) smoothing algortihm
+  early_stop: 50 #number of epochs to wait for model improvement before stopping (no early stopping if 0)
+
+  #define pseudo-labelling strategies (not used for MSKCC data !)
+  pseudo_labelling: False
+
+  unlabelled_loss:
+    type:
+    args:
+
+  unlabelled_scheduler:
+    type:
