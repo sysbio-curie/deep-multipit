@@ -178,7 +178,7 @@ Tensorboard visulaization is available with this project:
 **Note:** Tensorboard visualization is also available for cross-validation experiments, but we do not recommend to turn it on in case of multiple
 repeats of the cv scheme (i.e., `n_repeats` > 1 in *config_experiment.yaml* file).
 
-## Citing multipit
+## Citing deep-multipit
 
 If you use deep-multipit in a scientific publication, we would appreciate citation to the [following paper](https://doi.org/10.1038/s41467-025-55847-5):
 
