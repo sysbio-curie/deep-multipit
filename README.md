@@ -10,9 +10,7 @@ This repository proposes end-to-end strategies for multimodal binary classificat
 PyTorch models as well as the scripts to reproduce the experiments from
 [Vanguri *et al*, 2022](https://www.nature.com/articles/s43018-022-00416-8) and from our study:
 
-"Integration of clinical, pathological, radiological, and transcriptomic data improves the prediction of first-line immunotherapy outcome in metastatic non-small cell lung cancer"
-
-**Preprint:** https://doi.org/10.1101/2024.06.27.24309583
+[Captier, N., Lerousseau, M., Orlhac, F. et al. Integration of clinical, pathological, radiological, and transcriptomic data improves prediction for first-line immunotherapy outcome in metastatic non-small cell lung cancer. Nat Commun 16, 614 (2025).](https://doi.org/10.1038/s41467-025-55847-5)
 
 * [Deep-multipit project](#deep-multipit)
     * [Installation](#installation)
@@ -179,6 +177,14 @@ Tensorboard visulaization is available with this project:
 
 **Note:** Tensorboard visualization is also available for cross-validation experiments, but we do not recommend to turn it on in case of multiple
 repeats of the cv scheme (i.e., `n_repeats` > 1 in *config_experiment.yaml* file).
+
+## Citing multipit
+
+If you use deep-multipit in a scientific publication, we would appreciate citation to the [following paper](https://doi.org/10.1038/s41467-025-55847-5):
+
+```
+Captier, N., Lerousseau, M., Orlhac, F. et al. Integration of clinical, pathological, radiological, and transcriptomic data improves prediction for first-line immunotherapy outcome in metastatic non-small cell lung cancer. Nat Commun 16, 614 (2025). https://doi.org/10.1038/s41467-025-55847-5
+```
 
 ## Acknowledgements
 
