@@ -117,7 +117,7 @@ You can implement new multimodal models in [dmultipit/model/model.py](dmultipit/
 and using elements (potentialy new ones) from [dmultipit/model/attentions.py](dmultipit/model/attentions.py) and 
 [dmultipit/model/embeddings.py](dmultipit/model/embeddings.py).
 
-You can also implement our own loss or perfomance metrics in [dmultipit/model/loss.py](dmultipit/model/loss.py) and
+You can also implement our own loss or performance metrics in [dmultipit/model/loss.py](dmultipit/model/loss.py) and
 [dmultipit/model/metric.py](dmultipit/model/metric.py) respectively.
 
 ### Customize training and testing 
