@@ -94,7 +94,7 @@ python cross_validation.py -c config_architecture\config_late_MSKCC.yaml -e conf
 ```
 ## Customization
 The simplest and safest way to customize this project is by creating new Python scripts in the [scripts](scripts) directory 
-and/or changing the settings in configurtion files.
+and/or changing the settings in configuration files.
 
 For more complex customization you can also update the code in [dmultipit](dmultipit) package.
 
